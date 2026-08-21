@@ -121,54 +121,66 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun PlayerCards(state: GameState) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) { state.players.forEach { p -> val groups = state.properties.filter { it.value.ownerId == p.id }.keys.mapNotNull { BoardDefinitions.byIndex[it]?.group }.distinct(); Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = if (p.id == state.currentPlayer) Color(0xFF102B3D) else Color(0xFF17191E)), shape = RoundedCornerShape(10.dp), border = if (p.id == state.currentPlayer) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF1AA7FF)) else null) { Column(Modifier.padding(horizontal = 4.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(tokenIcon(p.id), fontSize = 20.sp); Text(p.name, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("M${p.money}", fontWeight = FontWeight.Bold, fontSize = 12.sp); Text(playerLocationLabel(p), fontSize = 7.5.sp, lineHeight = 8.sp, color = Color.Gray, maxLines = 2, textAlign = TextAlign.Center); Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 3.dp)) { groups.take(6).forEach { Box(Modifier.size(7.dp).background(tileColor(it), RoundedCornerShape(2.dp))) } } } } } } }
 
-@Composable private fun Board(state: GameState) { val order = listOf(0,1,2,3,4,5,6,7,8,9,10,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11); Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFDED4C2)).border(2.dp, Color(0xFF5C6068), RoundedCornerShape(14.dp)).padding(3.dp)) { Column(Modifier.fillMaxSize()) { for (r in 0..9) Row(Modifier.weight(1f)) { for (c in 0..9) { val index = when { r == 0 -> order[c]; r == 9 -> order[30 - c]; c == 0 -> order[39 - r]; c == 9 -> order[10 + r]; else -> -1 }; if (index >= 0) BoardTile(index, state) else Box(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(Color(0xFFEDE5D7))) } } }; BoardCenter() } }
+@Composable private fun Board(state: GameState) { val order = listOf(0,1,2,3,4,5,6,7,8,9,10,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11); Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFDED4C2)).border(2.dp, Color(0xFF5C6068), RoundedCornerShape(14.dp)).padding(3.dp)) { Column(Modifier.fillMaxSize()) { for (r in 0..9) Row(Modifier.weight(1f)) { for (c in 0..9) { val index = when { r == 0 -> order[c]; r == 9 -> order[30 - c]; c == 0 -> order[39 - r]; c == 9 -> order[10 + r]; else -> -1 }; if (index >= 0) BoardTile(index, state, tileTextRotation(r, c)) else Box(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(Color(0xFFEDE5D7))) } } }; BoardCenter() } }
+
+private fun tileTextRotation(row: Int, column: Int): Float = when {
+    row == 0 -> 45f
+    row == 9 -> -45f
+    column == 0 -> -45f
+    column == 9 -> 45f
+    else -> 0f
+}
 
 @Composable private fun BoardCenter() { Box(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(0.8f).align(Alignment.Center).background(Color(0xFFD8CCB8), RoundedCornerShape(8.dp)).border(1.dp, Color(0xFFB4A58F), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("MONOPOLY", color = Color(0xFFB01925), fontSize = 18.sp, fontWeight = FontWeight.Black); Text("CYFROWA EDYCJA", color = Color(0xFF6F665A), fontSize = 8.sp, letterSpacing = 1.sp); Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(top = 12.dp)) { DeckCard(Color(0xFFD87C1D), "?"); DeckCard(Color(0xFF2D91C8), "▣") } } } } }
 
 @Composable private fun DeckCard(color: Color, symbol: String) { Box(Modifier.size(38.dp, 48.dp).rotate(-8f).background(color, RoundedCornerShape(4.dp)).border(2.dp, Color.White, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) { Text(symbol, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black) } }
 
-@Composable private fun RowScope.BoardTile(index: Int, state: GameState) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; val icon = tileIcon(index); val label = boardLabel(index, f); Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(tileColor(f.group), RoundedCornerShape(4.dp)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { if (icon == null) BoardTileLabel(label) else Box(Modifier.fillMaxWidth().height(21.dp), contentAlignment = Alignment.Center) { BoardTileIcon(icon) }; TilePlayers(players, owner); f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(8.dp)) } }
+@Composable private fun RowScope.BoardTile(index: Int, state: GameState, rotation: Float) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; val icon = tileIcon(index); val label = boardLabel(index, f); val labelRotation = if (icon == null && BoardDefinitions.byIndex[index] != null) rotation else 0f; Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).clip(RoundedCornerShape(4.dp)).background(tileColor(f.group)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { if (icon == null) BoardTileLabel(label, labelRotation) else Box(Modifier.fillMaxWidth().height(25.dp), contentAlignment = Alignment.Center) { BoardTileIcon(icon) }; TilePlayers(players, owner); f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(7.dp)) } }
 }
 
 @Composable
-private fun BoardTileLabel(label: String) {
-    BoxWithConstraints(Modifier.fillMaxWidth().height(21.dp), contentAlignment = Alignment.TopCenter) {
-        val longestWord = label.lines().maxOfOrNull { it.length }?.coerceAtLeast(1) ?: 1
+private fun BoardTileLabel(label: String, rotation: Float) {
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val longestLine = label.lines().maxOfOrNull { it.length }?.coerceAtLeast(1) ?: 1
+        val tileSize = minOf(maxWidth.value, maxHeight.value)
+        val diagonalWidth = tileSize * 1.28f
         val baseSize = when {
-            longestWord >= 14 -> 4.4f
-            longestWord >= 12 -> 4.7f
-            longestWord >= 10 -> 5.0f
-            longestWord >= 8 -> 5.3f
-            else -> 5.8f
+            longestLine >= 14 -> 6.0f
+            longestLine >= 12 -> 6.2f
+            longestLine >= 10 -> 6.8f
+            longestLine >= 8 -> 7.2f
+            else -> 7.8f
         }
-        val fittedSize = minOf(baseSize, maxWidth.value / (longestWord * 0.58f)).coerceIn(4f, 5.8f)
+        val availableWidth = if (rotation == 0f) maxWidth.value else diagonalWidth
+        val fittedSize = minOf(baseSize, availableWidth / (longestLine * 0.55f)).coerceIn(5.4f, 7.8f)
         Text(
             text = label,
             fontSize = fittedSize.sp,
-            lineHeight = 6.sp,
-            maxLines = 3,
+            lineHeight = (fittedSize + 1.1f).sp,
+            maxLines = 2,
             softWrap = false,
             overflow = TextOverflow.Clip,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.1f).sp,
             color = Color(0xFF17191E),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .requiredWidth(if (rotation == 0f) maxWidth else diagonalWidth.dp)
+                .rotate(rotation)
         )
     }
 }
 
 private enum class TileIcon { WATER, POWER, TRAIN, CHANCE, CHEST }
 private fun tileIcon(index: Int): TileIcon? = when (index) { 6, 22, 36 -> TileIcon.CHANCE; 2, 18, 33 -> TileIcon.CHEST; 5, 15, 25, 35 -> TileIcon.TRAIN; 12 -> TileIcon.POWER; 28 -> TileIcon.WATER; else -> null }
-private fun tileFontSize(label: String) = when { label.length > 18 -> 5.sp; label.length > 13 -> 5.5.sp; else -> 6.2.sp }
-
-@Composable private fun TilePlayers(players: List<PlayerState>, owner: Int?) { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.height(11.dp)) { players.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) { row.forEach { Text(tokenIcon(it.id), fontSize = 7.sp) } } }; if (owner != null) Text("◆${owner + 1}", fontSize = 5.5.sp, color = Color(0xFF17191E)) } }
+@Composable private fun TilePlayers(players: List<PlayerState>, owner: Int?) { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.height(16.dp)) { players.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) { row.forEach { Text(tokenIcon(it.id), fontSize = 10.sp, lineHeight = 10.sp) } } }; if (owner != null) Text("◆${owner + 1}", fontSize = 5.5.sp, color = Color(0xFF17191E), lineHeight = 5.5.sp) } }
 
 @Composable private fun BoardTileIcon(icon: TileIcon) {
     if (icon == TileIcon.CHANCE) {
-        Text("?", color = Color(0xFFB76516), fontSize = 19.sp, fontWeight = FontWeight.Black)
+        Text("?", color = Color(0xFFB76516), fontSize = 23.sp, fontWeight = FontWeight.Black)
         return
     }
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(28.dp)) {
         val w = size.width
         val h = size.height
         val dark = Color(0xFF263238)
