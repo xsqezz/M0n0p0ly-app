@@ -172,7 +172,7 @@ private fun BoardTileLabel(label: String, rotation: Float) {
 }
 
 private enum class TileIcon { WATER, POWER, TRAIN, CHANCE, CHEST }
-private fun tileIcon(index: Int): TileIcon? = when (index) { 6, 22, 36 -> TileIcon.CHANCE; 2, 18, 33 -> TileIcon.CHEST; 5, 15, 25, 35 -> TileIcon.TRAIN; 12 -> TileIcon.POWER; 28 -> TileIcon.WATER; else -> null }
+private fun tileIcon(index: Int): TileIcon? = when (index) { 7, 22, 36 -> TileIcon.CHANCE; 2, 17, 33 -> TileIcon.CHEST; 5, 15, 25, 35 -> TileIcon.TRAIN; 12 -> TileIcon.POWER; 28 -> TileIcon.WATER; else -> null }
 @Composable private fun TilePlayers(players: List<PlayerState>, owner: Int?) { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.height(16.dp)) { players.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) { row.forEach { Text(tokenIcon(it.id), fontSize = 10.sp, lineHeight = 10.sp) } } }; if (owner != null) Text("◆${owner + 1}", fontSize = 5.5.sp, color = Color(0xFF17191E), lineHeight = 5.5.sp) } }
 
 @Composable private fun BoardTileIcon(icon: TileIcon) {
@@ -234,29 +234,29 @@ private fun tileIcon(index: Int): TileIcon? = when (index) { 6, 22, 36 -> TileIc
 
 private fun boardLabel(index: Int, field: Field): String = when (index) {
     0 -> "START"
-    2, 18, 33 -> "KASA\nSPOŁECZNA"
+    2, 17, 33 -> "KASA\nSPOŁECZNA"
     4 -> "PODATEK\nDOCHODOWY"
-    6, 22, 36 -> "SZANSA"
+    7, 22, 36 -> "SZANSA"
     10 -> "WIĘZIENIE\nODWIEDZAJĄCY"
     20 -> "BEZPŁATNY\nPARKING"
     30 -> "IDŹ DO\nWIĘZIENIA"
     38 -> "DOMIAR\nPODATKOWY"
     1 -> "KONOPACKA"
     3 -> "STALOWA"
-    7 -> "RADZYMIŃSKA"
+    6 -> "RADZYMIŃSKA"
     8 -> "JAGIELLOŃSKA"
     9 -> "TARGOWA"
     11 -> "PŁOWIECKA"
     13 -> "MARSA"
     14 -> "GROCHOWSKA"
     16 -> "OBOZOWA"
-    17 -> "GÓRCZEWSKA"
+    18 -> "GÓRCZEWSKA"
     19 -> "WOLSKA"
     21 -> "MICKIEWICZA"
     23 -> "SŁOWACKIEGO"
     24 -> "WILSONA"
-    26 -> "KRAKOWSKIE\nPRZEDMIEŚCIE"
-    27 -> "ŚWIĘTOKRZYSKA"
+    26 -> "ŚWIĘTOKRZYSKA"
+    27 -> "KRAKOWSKIE\nPRZEDMIEŚCIE"
     29 -> "NOWY ŚWIAT"
     31 -> "TRZECH\nKRZYŻY"
     32 -> "MARSZAŁKOWSKA"
@@ -268,9 +268,9 @@ private fun boardLabel(index: Int, field: Field): String = when (index) {
 
 private fun playerLocationLabel(player: PlayerState): String = when (player.position) {
     0 -> "START"
-    2, 18, 33 -> "KASA\nSPOŁECZNA"
+    2, 17, 33 -> "KASA\nSPOŁECZNA"
     4 -> "PODATEK"
-    6, 22, 36 -> "SZANSA"
+    7, 22, 36 -> "SZANSA"
     10, 30 -> "WIĘZIENIE"
     20 -> "PARKING"
     38 -> "DOMIAR"
