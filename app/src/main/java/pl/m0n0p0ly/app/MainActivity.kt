@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.random.Random
@@ -54,7 +55,7 @@ class MainActivity : ComponentActivity() {
 @Composable private fun GameScreen(state: GameState, update: (GameState) -> Unit) {
     val current = state.players[state.currentPlayer]
     Surface(Modifier.fillMaxSize(), color = Color(0xFF080A0D)) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp)) {
             Text("M0N0P0LY", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(bottom = 6.dp))
             PlayerCards(state)
             Card(Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF11151B)), shape = RoundedCornerShape(14.dp)) {
@@ -71,7 +72,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun Board(state: GameState) { val order = listOf(0,1,2,3,4,5,6,7,8,9,10,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11); Column(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFDED4C2)).border(2.dp, Color(0xFF5C6068), RoundedCornerShape(14.dp)).padding(3.dp)) { for (r in 0..9) Row(Modifier.weight(1f)) { for (c in 0..9) { val index = when { r == 0 -> order[c]; r == 9 -> order[30 - c]; c == 0 -> order[39 - r]; c == 9 -> order[10 + r]; else -> -1 }; if (index >= 0) BoardTile(index, state) else Box(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(Color(0xFFEDE5D7))) } } } }
 
-@Composable private fun RowScope.BoardTile(index: Int, state: GameState) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(tileColor(f.group), RoundedCornerShape(4.dp)).padding(2.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { Text(index.toString(), fontSize = 7.sp, color = Color.DarkGray); Text(f.name.replace("Ulica ", "").take(11), fontSize = 7.sp, lineHeight = 8.sp, maxLines = 2, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color(0xFF17191E)); if (f.price != null) Text("M${f.price}", fontSize = 7.sp, color = Color(0xFF17191E)); Row { players.forEach { Text("●", color = tokenColor(it.id), fontSize = 12.sp) } }; if (owner != null) Text("◆${owner + 1}", fontSize = 7.sp, color = Color(0xFF17191E)) } }
+@Composable private fun RowScope.BoardTile(index: Int, state: GameState) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(tileColor(f.group), RoundedCornerShape(4.dp)).padding(horizontal = 2.dp, vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(f.name.replace("Ulica ", "").replace("Aleje ", "").replace("Plac ", "").replace("Krakowskie Przedmieście", "Krak. Przedmieście").take(15), fontSize = 8.sp, lineHeight = 9.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color(0xFF17191E), modifier = Modifier.weight(1f).fillMaxWidth()); Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically) { players.forEach { Text("●", color = tokenColor(it.id), fontSize = 12.sp) }; if (owner != null) Text("◆${owner + 1}", fontSize = 8.sp, color = Color(0xFF17191E)) }; f.price?.let { Text("M$it", fontSize = 8.sp, color = Color(0xFF17191E), maxLines = 1) } } }
 
 @Composable private fun CurrentFieldPanel(state: GameState) { val p = state.players[state.currentPlayer]; val f = GameData.fields[p.position]; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF17191E)), shape = RoundedCornerShape(12.dp)) { Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("AKTUALNE POLE", color = Color.Gray, fontSize = 10.sp); Text(f.name, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(if (f.price != null) "Cena M${f.price}" else "Pole specjalne", color = Color.LightGray, fontSize = 12.sp) }; Text("${p.money} M", color = Color(0xFF27D17F), fontWeight = FontWeight.Bold) } } }
 
