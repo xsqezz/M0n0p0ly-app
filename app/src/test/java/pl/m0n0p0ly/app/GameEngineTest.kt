@@ -36,4 +36,23 @@ class GameEngineTest {
         assertEquals(1700, moved.players[0].money)
         assertEquals(1, moved.players[0].position)
     }
+    @Test fun jailDoubleAttemptIsAllowedAndReleasesPlayer() {
+        val state = GameState(listOf(PlayerState(0, "A", position = 10, inJail = true), PlayerState(1, "B")), currentPlayer = 0, phase = TurnPhase.JAIL_DECISION)
+        val moved = GameEngine.roll(state, 3, 3)
+        assertFalse(moved.players[0].inJail)
+        assertEquals(16, moved.players[0].position)
+    }
+
+    @Test fun chanceFineUsesCardValueAndDoesNotUsePlaceholderAmount() {
+        val state = GameState(listOf(PlayerState(0, "A"), PlayerState(1, "B")), currentPlayer = 0, phase = TurnPhase.CARD_RESOLUTION, pendingCard = BoardDefinitions.chance.first { it.id == "c6" })
+        val resolved = GameEngine.resolveCard(state)
+        assertEquals(1485, resolved.players[0].money)
+    }
+
+    @Test fun chanceMoveToStartPaysStartBonusOnce() {
+        val state = GameState(listOf(PlayerState(0, "A", position = 20), PlayerState(1, "B")), currentPlayer = 0, phase = TurnPhase.CARD_RESOLUTION, pendingCard = BoardDefinitions.chance.first { it.id == "c12" })
+        val resolved = GameEngine.resolveCard(state)
+        assertEquals(1700, resolved.players[0].money)
+        assertEquals(0, resolved.players[0].position)
+    }
 }
