@@ -127,7 +127,23 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun DeckCard(color: Color, symbol: String) { Box(Modifier.size(38.dp, 48.dp).rotate(-8f).background(color, RoundedCornerShape(4.dp)).border(2.dp, Color.White, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) { Text(symbol, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black) } }
 
-@Composable private fun RowScope.BoardTile(index: Int, state: GameState) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; val icon = tileIcon(index); Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(tileColor(f.group), RoundedCornerShape(4.dp)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { if (icon == null) Text(boardLabel(index, f), fontSize = tileFontSize(boardLabel(index, f)), lineHeight = 6.5.sp, maxLines = 3, overflow = TextOverflow.Clip, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color(0xFF17191E), modifier = Modifier.fillMaxWidth().height(21.dp)) else Box(Modifier.fillMaxWidth().height(21.dp), contentAlignment = Alignment.Center) { BoardTileIcon(icon) }; TilePlayers(players, owner); f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(8.dp)) } }
+@Composable private fun RowScope.BoardTile(index: Int, state: GameState) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; val icon = tileIcon(index); val label = boardLabel(index, f); Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(tileColor(f.group), RoundedCornerShape(4.dp)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { if (icon == null) BoardTileLabel(label) else Box(Modifier.fillMaxWidth().height(21.dp), contentAlignment = Alignment.Center) { BoardTileIcon(icon) }; TilePlayers(players, owner); f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(8.dp)) } }
+}
+
+@Composable
+private fun BoardTileLabel(label: String) {
+    Text(
+        text = label,
+        fontSize = tileFontSize(label),
+        lineHeight = 6.5.sp,
+        maxLines = 3,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        textAlign = TextAlign.Center,
+        fontWeight = FontWeight.Bold,
+        color = Color(0xFF17191E),
+        modifier = Modifier.fillMaxWidth().height(21.dp)
+    )
 }
 
 private enum class TileIcon { WATER, POWER, TRAIN, CHANCE, CHEST }
