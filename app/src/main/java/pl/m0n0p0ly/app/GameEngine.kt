@@ -11,6 +11,11 @@ sealed interface GameAction {
     data object PayJailFee : GameAction
     data object ResolveCard : GameAction
     data object UseJailCard : GameAction
+    data class BuyHouse(val propertyIndex: Int) : GameAction
+    data class BuyHotel(val propertyIndex: Int) : GameAction
+    data class SellBuilding(val propertyIndex: Int) : GameAction
+    data class MortgageProperty(val propertyIndex: Int) : GameAction
+    data class UnmortgageProperty(val propertyIndex: Int) : GameAction
 }
 
 data class PlayerState(val id: Int, val name: String, val money: Int = 1500, val position: Int = 0, val inJail: Boolean = false, val jailAttempts: Int = 0, val bankrupt: Boolean = false, val getOutOfJailCards: Int = 0)
@@ -22,7 +27,7 @@ data class GameState(val players: List<PlayerState>, val properties: Map<Int, Pr
 
 object GameEngine {
     fun newGame(names: List<String>): GameState { val players = names.take(5).mapIndexed { i, name -> PlayerState(i, name.ifBlank { "Gracz ${i + 1}" }) }; return GameState(players, lastMessage = "TURA 1 • ${players.first().name}", history = listOf(HistoryEntry("Gra rozpoczęta"))) }
-    fun reduce(state: GameState, action: GameAction): GameState = when (action) { is GameAction.RollDice -> roll(state, action.first, action.second); GameAction.BuyProperty -> buy(state); GameAction.DeclineProperty -> declinePurchase(state); GameAction.PlaceBid -> bid(state); GameAction.PassAuction -> passAuction(state); GameAction.PayJailFee -> leaveJail(state); GameAction.ResolveCard -> resolveCard(state); GameAction.UseJailCard -> useJailCard(state) }
+    fun reduce(state: GameState, action: GameAction): GameState = when (action) { is GameAction.RollDice -> roll(state, action.first, action.second); GameAction.BuyProperty -> buy(state); GameAction.DeclineProperty -> declinePurchase(state); GameAction.PlaceBid -> bid(state); GameAction.PassAuction -> passAuction(state); GameAction.PayJailFee -> leaveJail(state); GameAction.ResolveCard -> resolveCard(state); GameAction.UseJailCard -> useJailCard(state); is GameAction.BuyHouse -> buyHouse(state, action.propertyIndex); is GameAction.BuyHotel -> buyHotel(state, action.propertyIndex); is GameAction.SellBuilding -> sellBuilding(state, action.propertyIndex); is GameAction.MortgageProperty -> mortgageProperty(state, action.propertyIndex); is GameAction.UnmortgageProperty -> unmortgageProperty(state, action.propertyIndex) }
 
     fun roll(state: GameState, die1: Int, die2: Int): GameState {
         if (die1 !in 1..6 || die2 !in 1..6) return reject(state, "Nieprawidłowy wynik kości")
@@ -58,6 +63,67 @@ object GameEngine {
 
     fun leaveJail(state: GameState): GameState { if (state.phase != TurnPhase.JAIL_DECISION) return reject(state, "Nie jesteś teraz w fazie więzienia"); val p = state.players[state.currentPlayer]; if (!p.inJail || p.money < 50) return reject(state, "Nie można zapłacić za wyjście z więzienia"); return state.copy(players = state.players.replace(p.copy(money = p.money - 50, inJail = false, jailAttempts = 0)), phase = TurnPhase.WAITING_FOR_ROLL, lastMessage = "${p.name} zapłacił(a) M50 — rzuć kośćmi", history = state.history.add("${p.name} zapłacił(a) M50 za wyjście z więzienia", p.id)) }
     fun useJailCard(state: GameState): GameState { if (state.phase != TurnPhase.JAIL_DECISION) return reject(state, "Nie jesteś teraz w fazie więzienia"); val p = state.players[state.currentPlayer]; if (!p.inJail || p.getOutOfJailCards == 0) return reject(state, "Brak karty wyjścia z więzienia"); return state.copy(players = state.players.replace(p.copy(inJail = false, jailAttempts = 0, getOutOfJailCards = p.getOutOfJailCards - 1)), phase = TurnPhase.WAITING_FOR_ROLL, lastMessage = "${p.name} użył(a) karty wyjścia z więzienia", history = state.history.add("${p.name} użył(a) karty wyjścia z więzienia", p.id)) }
+
+    fun buyHouse(state: GameState, propertyIndex: Int): GameState {
+        val p = state.players[state.currentPlayer]
+        val property = BoardDefinitions.byIndex[propertyIndex] ?: return reject(state, "To pole nie jest nieruchomością")
+        val current = state.properties[propertyIndex] ?: return reject(state, "Najpierw kup tę nieruchomość")
+        if (!canManage(state) || property.kind != Kind.STREET || current.ownerId != p.id) return reject(state, "Nie można teraz kupić domu")
+        if (!groupComplete(state, property, p.id) || current.mortgaged || current.hotel || current.houses >= 4) return reject(state, "Brak kompletu albo nieruchomość nie może być zabudowana")
+        val groupStates = BoardDefinitions.properties.filter { it.group == property.group }.map { state.properties[it.index]?.houses ?: 0 }
+        if (current.houses > groupStates.minOrNull()!!) return reject(state, "Buduj równomiernie w całej grupie")
+        if (p.money < property.houseCost) return reject(state, "Brakuje pieniędzy na dom")
+        val updated = state.copy(players = state.players.replace(p.copy(money = p.money - property.houseCost)), properties = state.properties + (propertyIndex to current.copy(houses = current.houses + 1)), lastMessage = "${p.name} kupił(a) dom na ${property.name}", history = state.history.add("${p.name} kupił(a) dom na ${property.name}", p.id))
+        return updated
+    }
+
+    fun buyHotel(state: GameState, propertyIndex: Int): GameState {
+        val p = state.players[state.currentPlayer]
+        val property = BoardDefinitions.byIndex[propertyIndex] ?: return reject(state, "To pole nie jest nieruchomością")
+        val current = state.properties[propertyIndex] ?: return reject(state, "Najpierw kup tę nieruchomość")
+        if (!canManage(state) || property.kind != Kind.STREET || current.ownerId != p.id || !groupComplete(state, property, p.id)) return reject(state, "Nie można teraz kupić hotelu")
+        if (current.mortgaged || current.hotel || current.houses != 4) return reject(state, "Hotel wymaga czterech domów")
+        if (p.money < property.hotelCost) return reject(state, "Brakuje pieniędzy na hotel")
+        return state.copy(players = state.players.replace(p.copy(money = p.money - property.hotelCost)), properties = state.properties + (propertyIndex to current.copy(hotel = true, houses = 0)), lastMessage = "${p.name} kupił(a) hotel na ${property.name}", history = state.history.add("${p.name} kupił(a) hotel na ${property.name}", p.id))
+    }
+
+    fun sellBuilding(state: GameState, propertyIndex: Int): GameState {
+        val p = state.players[state.currentPlayer]
+        val property = BoardDefinitions.byIndex[propertyIndex] ?: return reject(state, "To pole nie jest nieruchomością")
+        val current = state.properties[propertyIndex] ?: return reject(state, "Brak własności")
+        if (!canManage(state) || property.kind != Kind.STREET || current.ownerId != p.id) return reject(state, "Nie można teraz sprzedawać budynku")
+        val groupMax = BoardDefinitions.properties.filter { it.group == property.group }.maxOf { state.properties[it.index]?.houses ?: 0 }
+        if (current.hotel) {
+            val refund = property.hotelCost / 2
+            return state.copy(players = state.players.replace(p.copy(money = p.money + refund)), properties = state.properties + (propertyIndex to current.copy(hotel = false, houses = 4)), lastMessage = "${p.name} sprzedał(a) hotel na ${property.name}", history = state.history.add("${p.name} sprzedał(a) hotel na ${property.name}", p.id))
+        }
+        if (current.houses == 0 || current.houses < groupMax) return reject(state, "Sprzedawaj budynki równomiernie")
+        val refund = property.houseCost / 2
+        return state.copy(players = state.players.replace(p.copy(money = p.money + refund)), properties = state.properties + (propertyIndex to current.copy(houses = current.houses - 1)), lastMessage = "${p.name} sprzedał(a) dom na ${property.name}", history = state.history.add("${p.name} sprzedał(a) dom na ${property.name}", p.id))
+    }
+
+    fun mortgageProperty(state: GameState, propertyIndex: Int): GameState {
+        val p = state.players[state.currentPlayer]
+        val property = BoardDefinitions.byIndex[propertyIndex] ?: return reject(state, "To pole nie jest nieruchomością")
+        val current = state.properties[propertyIndex] ?: return reject(state, "Brak własności")
+        if (!canManage(state) || current.ownerId != p.id || current.mortgaged) return reject(state, "Nie można zastawić tej nieruchomości")
+        if (current.houses > 0 || current.hotel) return reject(state, "Najpierw sprzedaj wszystkie budynki")
+        val value = GameData.mortgage(property.price)
+        return state.copy(players = state.players.replace(p.copy(money = p.money + value)), properties = state.properties + (propertyIndex to current.copy(mortgaged = true)), lastMessage = "${p.name} zastawił(a) ${property.name} za M$value", history = state.history.add("${p.name} zastawił(a) ${property.name}", p.id))
+    }
+
+    fun unmortgageProperty(state: GameState, propertyIndex: Int): GameState {
+        val p = state.players[state.currentPlayer]
+        val property = BoardDefinitions.byIndex[propertyIndex] ?: return reject(state, "To pole nie jest nieruchomością")
+        val current = state.properties[propertyIndex] ?: return reject(state, "Brak własności")
+        if (!canManage(state) || current.ownerId != p.id || !current.mortgaged) return reject(state, "Ta nieruchomość nie jest pod hipoteką")
+        val cost = GameData.redemption(property.price)
+        if (p.money < cost) return reject(state, "Brakuje pieniędzy na spłatę hipoteki")
+        return state.copy(players = state.players.replace(p.copy(money = p.money - cost)), properties = state.properties + (propertyIndex to current.copy(mortgaged = false)), lastMessage = "${p.name} spłacił(a) hipotekę ${property.name} za M$cost", history = state.history.add("${p.name} spłacił(a) hipotekę ${property.name}", p.id))
+    }
+
+    private fun canManage(state: GameState) = state.phase == TurnPhase.WAITING_FOR_ROLL || state.phase == TurnPhase.WAITING_FOR_END_TURN
+    private fun groupComplete(state: GameState, property: PropertyDefinition, ownerId: Int) = property.group != null && BoardDefinitions.properties.filter { it.group == property.group }.all { state.properties[it.index]?.ownerId == ownerId }
     private fun jailRoll(state: GameState, p: PlayerState, die1: Int, die2: Int): GameState { val dice = DiceResult(die1, die2); if (dice.doubles) return roll(state.copy(players = state.players.replace(p.copy(inJail = false, jailAttempts = 0)), phase = TurnPhase.WAITING_FOR_ROLL), die1, die2); val attempts = p.jailAttempts + 1; if (attempts >= 3) { val released = p.copy(inJail = false, jailAttempts = 0, money = p.money - 50); return roll(state.copy(players = state.players.replace(released), phase = TurnPhase.WAITING_FOR_ROLL, lastMessage = "Trzecia próba nieudana — zapłać M50"), die1, die2) }; return endTurn(state.copy(players = state.players.replace(p.copy(jailAttempts = attempts)), lastDice = dice), "${p.name} nie wyrzucił(a) dubletu (${attempts}/3)") }
 
     private fun resolveLanding(state: GameState): GameState { val p = state.players[state.currentPlayer]; val field = GameData.fields[p.position]; if (p.position == 30) return sendToJail(state, p, "${p.name} trafia do więzienia"); if (p.position == 4) return settle(state, p, -200, "Podatek Dochodowy"); if (p.position == 38) return settle(state, p, -100, "Domiar Podatkowy"); if (field.name == "Szansa") return drawCard(state, CardDeck.CHANCE); if (field.name == "Kasa Społeczna") return drawCard(state, CardDeck.COMMUNITY); val property = BoardDefinitions.byIndex[p.position]; if (property != null) { val existing = state.properties[p.position]; if (existing?.ownerId == null) return state.copy(phase = TurnPhase.PROPERTY_DECISION, lastMessage = "${property.name} jest wolna — kup albo uruchom licytację"); if (existing.ownerId != p.id && !existing.mortgaged) return settleRent(state, p, property, existing) }; return finishMovement(state, "${p.name} staje na polu ${field.name}") }
