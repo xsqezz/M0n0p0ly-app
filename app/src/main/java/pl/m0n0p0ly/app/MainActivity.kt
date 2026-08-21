@@ -145,35 +145,36 @@ private fun tileFontSize(label: String) = when { label.length > 18 -> 5.sp; labe
         val w = size.width
         val h = size.height
         val dark = Color(0xFF263238)
-        val line = Stroke(width = w * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val lineWidth = w * 0.09f
+        val line = Stroke(width = lineWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
         when (icon) {
             TileIcon.WATER -> {
-                drawLine(dark, Offset(w * .12f, h * .35f), Offset(w * .68f, h * .35f), line.strokeWidth, StrokeCap.Round)
-                drawLine(dark, Offset(w * .68f, h * .35f), Offset(w * .68f, h * .62f), line.strokeWidth, StrokeCap.Round)
-                drawLine(dark, Offset(w * .55f, h * .18f), Offset(w * .82f, h * .18f), line.strokeWidth, StrokeCap.Round)
-                drawLine(dark, Offset(w * .68f, h * .18f), Offset(w * .68f, h * .35f), line.strokeWidth, StrokeCap.Round)
+                drawLine(dark, Offset(w * .12f, h * .35f), Offset(w * .68f, h * .35f), lineWidth, StrokeCap.Round)
+                drawLine(dark, Offset(w * .68f, h * .35f), Offset(w * .68f, h * .62f), lineWidth, StrokeCap.Round)
+                drawLine(dark, Offset(w * .55f, h * .18f), Offset(w * .82f, h * .18f), lineWidth, StrokeCap.Round)
+                drawLine(dark, Offset(w * .68f, h * .18f), Offset(w * .68f, h * .35f), lineWidth, StrokeCap.Round)
                 val drop = Path().apply { moveTo(w * .68f, h * .62f); cubicTo(w * .50f, h * .78f, w * .58f, h * .95f, w * .68f, h * .95f); cubicTo(w * .79f, h * .95f, w * .86f, h * .78f, w * .68f, h * .62f); close() }
                 drawPath(drop, Color(0xFF2D9CDB))
             }
             TileIcon.POWER -> {
                 drawCircle(Color(0xFFFFD54F), radius = w * .27f, center = Offset(w * .5f, h * .35f))
                 drawCircle(dark, radius = w * .27f, center = Offset(w * .5f, h * .35f), style = line)
-                drawLine(dark, Offset(w * .39f, h * .58f), Offset(w * .61f, h * .58f), line.strokeWidth)
-                drawLine(dark, Offset(w * .42f, h * .72f), Offset(w * .58f, h * .72f), line.strokeWidth)
-                drawLine(Color(0xFFFFB300), Offset(w * .48f, h * .08f), Offset(w * .43f, h * .28f), line.strokeWidth)
+                drawLine(dark, Offset(w * .39f, h * .58f), Offset(w * .61f, h * .58f), lineWidth)
+                drawLine(dark, Offset(w * .42f, h * .72f), Offset(w * .58f, h * .72f), lineWidth)
+                drawLine(Color(0xFFFFB300), Offset(w * .48f, h * .08f), Offset(w * .43f, h * .28f), lineWidth)
             }
             TileIcon.TRAIN -> {
                 drawRoundRect(dark, topLeft = Offset(w * .12f, h * .34f), size = androidx.compose.ui.geometry.Size(w * .76f, h * .34f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .06f, w * .06f))
                 drawRect(Color(0xFFECEFF1), topLeft = Offset(w * .22f, h * .42f), size = androidx.compose.ui.geometry.Size(w * .18f, h * .12f))
                 drawRect(Color(0xFFECEFF1), topLeft = Offset(w * .48f, h * .42f), size = androidx.compose.ui.geometry.Size(w * .18f, h * .12f))
-                drawLine(dark, Offset(w * .72f, h * .34f), Offset(w * .72f, h * .18f), line.strokeWidth)
-                drawLine(dark, Offset(w * .64f, h * .18f), Offset(w * .82f, h * .18f), line.strokeWidth)
+                drawLine(dark, Offset(w * .72f, h * .34f), Offset(w * .72f, h * .18f), lineWidth)
+                drawLine(dark, Offset(w * .64f, h * .18f), Offset(w * .82f, h * .18f), lineWidth)
                 drawCircle(dark, radius = w * .11f, center = Offset(w * .3f, h * .78f))
                 drawCircle(dark, radius = w * .11f, center = Offset(w * .7f, h * .78f))
             }
             TileIcon.CHEST -> {
                 drawRoundRect(Color(0xFF8D5524), topLeft = Offset(w * .12f, h * .3f), size = androidx.compose.ui.geometry.Size(w * .76f, h * .48f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .06f, w * .06f))
-                drawLine(Color(0xFFFFD166), Offset(w * .12f, h * .48f), Offset(w * .88f, h * .48f), line.strokeWidth)
+                drawLine(Color(0xFFFFD166), Offset(w * .12f, h * .48f), Offset(w * .88f, h * .48f), lineWidth)
                 drawRoundRect(Color(0xFFFFD166), topLeft = Offset(w * .44f, h * .45f), size = androidx.compose.ui.geometry.Size(w * .12f, h * .18f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .02f, w * .02f))
             }
             TileIcon.CHANCE -> Unit
