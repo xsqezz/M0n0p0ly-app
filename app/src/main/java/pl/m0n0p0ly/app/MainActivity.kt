@@ -135,7 +135,7 @@ private fun tileTextRotation(row: Int, column: Int): Float = when {
 
 @Composable private fun DeckCard(color: Color, symbol: String) { Box(Modifier.size(38.dp, 48.dp).rotate(-8f).background(color, RoundedCornerShape(4.dp)).border(2.dp, Color.White, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) { Text(symbol, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black) } }
 
-@Composable private fun RowScope.BoardTile(index: Int, state: GameState, rotation: Float) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; val icon = tileIcon(index); val label = boardLabel(index, f); val labelRotation = if (icon == null && BoardDefinitions.byIndex[index] != null) rotation else 0f; Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).clip(RoundedCornerShape(4.dp)).background(tileColor(f.group)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { if (icon == null) BoardTileLabel(label, labelRotation) else Box(Modifier.fillMaxWidth().height(25.dp), contentAlignment = Alignment.Center) { BoardTileIcon(icon) }; TilePlayers(players, owner); f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(7.dp)) } }
+@Composable private fun RowScope.BoardTile(index: Int, state: GameState, rotation: Float) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; val icon = tileIcon(index); val label = boardLabel(index, f); val labelRotation = if (icon == null) rotation else 0f; Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).clip(RoundedCornerShape(4.dp)).background(tileColor(f.group)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { if (icon == null) BoardTileLabel(label, labelRotation) else Box(Modifier.fillMaxWidth().height(25.dp), contentAlignment = Alignment.Center) { BoardTileIcon(icon) }; TilePlayers(players, owner); f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(7.dp)) } }
 }
 
 @Composable
@@ -152,7 +152,7 @@ private fun BoardTileLabel(label: String, rotation: Float) {
             else -> 7.8f
         }
         val availableWidth = if (rotation == 0f) maxWidth.value else diagonalWidth
-        val fittedSize = minOf(baseSize, availableWidth / (longestLine * 0.55f)).coerceIn(5.4f, 7.8f)
+        val fittedSize = minOf(baseSize * 0.70f, availableWidth / (longestLine * 0.55f)).coerceIn(3.8f, 5.5f)
         Text(
             text = label,
             fontSize = fittedSize.sp,
