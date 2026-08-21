@@ -74,4 +74,23 @@ class GameEngineTest {
         assertEquals(1493, redeemed.players[0].money)
         assertFalse(redeemed.properties[11]!!.mortgaged)
     }
+
+    @Test fun acceptedTradeTransfersCashAndPropertiesAtomically() {
+        val state = GameState(listOf(PlayerState(0, "A"), PlayerState(1, "B")), properties = mapOf(1 to PropertyState(ownerId = 0), 3 to PropertyState(ownerId = 1)))
+        val offer = TradeOffer(0, 1, offeredPropertyIndexes = listOf(1), requestedPropertyIndexes = listOf(3), offeredCash = 100, requestedCash = 20)
+        val offered = GameEngine.reduce(state, GameAction.CreateTrade(offer))
+        val accepted = GameEngine.reduce(offered, GameAction.AcceptTrade)
+        assertEquals(1, accepted.properties[1]?.ownerId)
+        assertEquals(0, accepted.properties[3]?.ownerId)
+        assertEquals(1420, accepted.players[0].money)
+        assertEquals(1580, accepted.players[1].money)
+        assertNull(accepted.tradeOffer)
+    }
+
+    @Test fun tradeCannotIncludePropertyWithBuildings() {
+        val state = GameState(listOf(PlayerState(0, "A"), PlayerState(1, "B")), properties = mapOf(1 to PropertyState(ownerId = 0, houses = 1)))
+        val offer = TradeOffer(0, 1, offeredPropertyIndexes = listOf(1))
+        val rejected = GameEngine.reduce(state, GameAction.CreateTrade(offer))
+        assertTrue(rejected.lastMessage.startsWith("BŁĄD"))
+    }
 }
