@@ -64,11 +64,17 @@ class MainActivity : ComponentActivity() {
             }
             Board(state)
             CurrentFieldPanel(state)
-            if (state.auction != null) AuctionPanel(state, update) else ActionBar(state, update) { showProperties = true }
+            when {
+                state.phase == TurnPhase.CARD_RESOLUTION && state.pendingCard != null -> CardPanel(state, update)
+                state.auction != null -> AuctionPanel(state, update)
+                else -> ActionBar(state, update) { showProperties = true }
+            }
         }
     }
     if (showProperties) PropertiesDialog(state) { showProperties = false }
 }
+
+@Composable private fun CardPanel(state: GameState, update: (GameState) -> Unit) { val card = state.pendingCard ?: return; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = if (card.deck == CardDeck.CHANCE) Color(0xFFB76516) else Color(0xFF176B8F)), shape = RoundedCornerShape(14.dp)) { Column(Modifier.padding(14.dp)) { Text(if (card.deck == CardDeck.CHANCE) "SZANSA" else "KASA SPOŁECZNA", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp); Text(card.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.padding(vertical = 6.dp)); Text(card.text, color = Color.White, fontSize = 14.sp); Button({ update(GameEngine.reduce(state, GameAction.ResolveCard)) }, Modifier.fillMaxWidth().padding(top = 10.dp)) { Text("WYKONAJ") } } } }
 
 @Composable private fun AuctionPanel(state: GameState, update: (GameState) -> Unit) { val auction = state.auction ?: return; val bidder = state.players[auction.order[auction.currentIndex]]; val field = GameData.fields[auction.propertyIndex]; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF202A36)), shape = RoundedCornerShape(12.dp)) { Column(Modifier.padding(12.dp)) { Text("LICYTACJA", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Bold); Text(field.name, fontWeight = FontWeight.Bold, fontSize = 16.sp); Text("Aktualna stawka: M${auction.highBid} • kolej: ${bidder.name}", color = Color.LightGray, fontSize = 12.sp); Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button({ update(GameEngine.bid(state)) }, Modifier.weight(1f)) { Text(if (auction.highestBidder == null) "LICYTUJ M10" else "PODBIJ M${auction.highBid + 10}", fontSize = 10.sp) }; OutlinedButton({ update(GameEngine.passAuction(state)) }, Modifier.weight(1f)) { Text("PASUJĘ", fontSize = 10.sp) } } } } }
 
