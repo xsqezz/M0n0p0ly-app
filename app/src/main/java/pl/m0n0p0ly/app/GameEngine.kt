@@ -10,9 +10,10 @@ sealed interface GameAction {
     data object PassAuction : GameAction
     data object PayJailFee : GameAction
     data object ResolveCard : GameAction
+    data object UseJailCard : GameAction
 }
 
-data class PlayerState(val id: Int, val name: String, val money: Int = 1500, val position: Int = 0, val inJail: Boolean = false, val jailAttempts: Int = 0, val bankrupt: Boolean = false)
+data class PlayerState(val id: Int, val name: String, val money: Int = 1500, val position: Int = 0, val inJail: Boolean = false, val jailAttempts: Int = 0, val bankrupt: Boolean = false, val getOutOfJailCards: Int = 0)
 data class PropertyState(val ownerId: Int? = null, val houses: Int = 0, val hotel: Boolean = false, val mortgaged: Boolean = false)
 data class DiceResult(val first: Int, val second: Int) { val total get() = first + second; val doubles get() = first == second }
 data class AuctionState(val propertyIndex: Int, val highBid: Int = 0, val highestBidder: Int? = null, val order: List<Int>, val currentIndex: Int = 0, val passed: Set<Int> = emptySet())
@@ -21,7 +22,7 @@ data class GameState(val players: List<PlayerState>, val properties: Map<Int, Pr
 
 object GameEngine {
     fun newGame(names: List<String>): GameState { val players = names.take(5).mapIndexed { i, name -> PlayerState(i, name.ifBlank { "Gracz ${i + 1}" }) }; return GameState(players, lastMessage = "TURA 1 • ${players.first().name}", history = listOf(HistoryEntry("Gra rozpoczęta"))) }
-    fun reduce(state: GameState, action: GameAction): GameState = when (action) { is GameAction.RollDice -> roll(state, action.first, action.second); GameAction.BuyProperty -> buy(state); GameAction.DeclineProperty -> declinePurchase(state); GameAction.PlaceBid -> bid(state); GameAction.PassAuction -> passAuction(state); GameAction.PayJailFee -> leaveJail(state); GameAction.ResolveCard -> resolveCard(state) }
+    fun reduce(state: GameState, action: GameAction): GameState = when (action) { is GameAction.RollDice -> roll(state, action.first, action.second); GameAction.BuyProperty -> buy(state); GameAction.DeclineProperty -> declinePurchase(state); GameAction.PlaceBid -> bid(state); GameAction.PassAuction -> passAuction(state); GameAction.PayJailFee -> leaveJail(state); GameAction.ResolveCard -> resolveCard(state); GameAction.UseJailCard -> useJailCard(state) }
 
     fun roll(state: GameState, die1: Int, die2: Int): GameState {
         if (die1 !in 1..6 || die2 !in 1..6) return reject(state, "Nieprawidłowy wynik kości")
@@ -56,6 +57,7 @@ object GameEngine {
     fun passAuction(state: GameState, message: String? = null): GameState { val auction = state.auction ?: return reject(state, "Brak aktywnej licytacji"); val bidder = auction.order[auction.currentIndex]; return moveAuctionToNext(state.copy(auction = auction.copy(passed = auction.passed + bidder), lastMessage = message ?: "${state.players[bidder].name} pasuje")) }
 
     fun leaveJail(state: GameState): GameState { if (state.phase != TurnPhase.JAIL_DECISION) return reject(state, "Nie jesteś teraz w fazie więzienia"); val p = state.players[state.currentPlayer]; if (!p.inJail || p.money < 50) return reject(state, "Nie można zapłacić za wyjście z więzienia"); return state.copy(players = state.players.replace(p.copy(money = p.money - 50, inJail = false, jailAttempts = 0)), phase = TurnPhase.WAITING_FOR_ROLL, lastMessage = "${p.name} zapłacił(a) M50 — rzuć kośćmi", history = state.history.add("${p.name} zapłacił(a) M50 za wyjście z więzienia", p.id)) }
+    fun useJailCard(state: GameState): GameState { if (state.phase != TurnPhase.JAIL_DECISION) return reject(state, "Nie jesteś teraz w fazie więzienia"); val p = state.players[state.currentPlayer]; if (!p.inJail || p.getOutOfJailCards == 0) return reject(state, "Brak karty wyjścia z więzienia"); return state.copy(players = state.players.replace(p.copy(inJail = false, jailAttempts = 0, getOutOfJailCards = p.getOutOfJailCards - 1)), phase = TurnPhase.WAITING_FOR_ROLL, lastMessage = "${p.name} użył(a) karty wyjścia z więzienia", history = state.history.add("${p.name} użył(a) karty wyjścia z więzienia", p.id)) }
     private fun jailRoll(state: GameState, p: PlayerState, die1: Int, die2: Int): GameState { val dice = DiceResult(die1, die2); if (dice.doubles) return roll(state.copy(players = state.players.replace(p.copy(inJail = false, jailAttempts = 0)), phase = TurnPhase.WAITING_FOR_ROLL), die1, die2); val attempts = p.jailAttempts + 1; if (attempts >= 3) { val released = p.copy(inJail = false, jailAttempts = 0, money = p.money - 50); return roll(state.copy(players = state.players.replace(released), phase = TurnPhase.WAITING_FOR_ROLL, lastMessage = "Trzecia próba nieudana — zapłać M50"), die1, die2) }; return endTurn(state.copy(players = state.players.replace(p.copy(jailAttempts = attempts)), lastDice = dice), "${p.name} nie wyrzucił(a) dubletu (${attempts}/3)") }
 
     private fun resolveLanding(state: GameState): GameState { val p = state.players[state.currentPlayer]; val field = GameData.fields[p.position]; if (p.position == 30) return sendToJail(state, p, "${p.name} trafia do więzienia"); if (p.position == 4) return settle(state, p, -200, "Podatek Dochodowy"); if (p.position == 38) return settle(state, p, -100, "Domiar Podatkowy"); if (field.name == "Szansa") return drawCard(state, CardDeck.CHANCE); if (field.name == "Kasa Społeczna") return drawCard(state, CardDeck.COMMUNITY); val property = BoardDefinitions.byIndex[p.position]; if (property != null) { val existing = state.properties[p.position]; if (existing?.ownerId == null) return state.copy(phase = TurnPhase.PROPERTY_DECISION, lastMessage = "${property.name} jest wolna — kup albo uruchom licytację"); if (existing.ownerId != p.id && !existing.mortgaged) return settleRent(state, p, property, existing) }; return finishMovement(state, "${p.name} staje na polu ${field.name}") }
@@ -63,7 +65,82 @@ object GameEngine {
     private fun settleRent(state: GameState, payer: PlayerState, property: PropertyDefinition, propertyState: PropertyState): GameState { val owner = state.players[propertyState.ownerId!!]; val count = state.properties.count { it.value.ownerId == owner.id && BoardDefinitions.byIndex[it.key]?.kind == property.kind }; val rent = when (property.kind) { Kind.STATION -> listOf(25,50,100,200)[(count - 1).coerceIn(0,3)]; Kind.UTILITY -> if (count > 1) (state.lastDice?.total ?: 0) * 10 else (state.lastDice?.total ?: 0) * 4; Kind.STREET -> property.rent!!.let { if (propertyState.hotel) it.hotel else if (propertyState.houses > 0) it.houses[propertyState.houses - 1] else if (count == BoardDefinitions.properties.count { d -> d.group == property.group && state.properties[d.index]?.ownerId == owner.id }) it.monopoly else it.base }; else -> 0 }; val paid = payer.copy(money = payer.money - rent); val received = owner.copy(money = owner.money + rent); return finishMovement(state.copy(players = state.players.replace(paid).replace(received), lastMessage = "${payer.name} płaci M$rent czynszu dla ${owner.name}", history = state.history.add("${payer.name} zapłacił(a) M$rent czynszu ${owner.name}", payer.id)), state.lastMessage) }
     private fun settle(state: GameState, p: PlayerState, amount: Int, reason: String): GameState = finishMovement(state.copy(players = state.players.replace(p.copy(money = p.money + amount)), lastMessage = "$reason: ${if (amount < 0) "-" else "+"}M${kotlin.math.abs(amount)}", history = state.history.add("${p.name} zapłacił(a) ${kotlin.math.abs(amount)} za $reason", p.id)), state.lastMessage)
     private fun drawCard(state: GameState, deck: CardDeck): GameState { val cards = if (deck == CardDeck.CHANCE) BoardDefinitions.chance else BoardDefinitions.community; val card = cards[(state.history.count { it.text.contains("kartę") } + state.currentPlayer) % cards.size]; return state.copy(phase = TurnPhase.CARD_RESOLUTION, pendingCard = card, lastMessage = "${state.players[state.currentPlayer].name} dobiera kartę", history = state.history.add("${state.players[state.currentPlayer].name} dobiera kartę", state.currentPlayer)) }
-    fun resolveCard(state: GameState): GameState { val card = state.pendingCard ?: return reject(state, "Brak karty do wykonania"); val p = state.players[state.currentPlayer]; val change = when (card.id) { "c6","s10","s11" -> -50; "c8","s1" -> 200; "s2" -> 20; "s3" -> 50; "s4","s5","s6" -> 100; "s9" -> 25; else -> 0 }; val next = state.copy(players = state.players.replace(p.copy(money = p.money + change)), pendingCard = null, lastMessage = "${card.title}: ${if (change >= 0) "+" else ""}M$change", history = state.history.add("${p.name} wykonał(a) kartę: ${card.title}", p.id)); return finishMovement(next, next.lastMessage) }
+    fun resolveCard(state: GameState): GameState {
+        val card = state.pendingCard ?: return reject(state, "Brak karty do wykonania")
+        val p = state.players[state.currentPlayer]
+        val cleared = state.copy(pendingCard = null)
+        return when (card.id) {
+            "c1" -> moveByCard(cleared, nearestAhead(p.position, listOf(12, 28)), card.title)
+            "c2" -> moveByCard(cleared, 5, card.title)
+            "c4", "s14" -> sendToJail(cleared, p, "${p.name} idzie do więzienia z karty")
+            "c5" -> moveByCard(cleared, 24, card.title)
+            "c9", "c16" -> moveByCard(cleared, nearestAhead(p.position, listOf(5, 15, 25, 35)), card.title)
+            "c10" -> moveByCard(cleared, 39, card.title)
+            "c11" -> moveByCard(cleared, 11, card.title)
+            "c12", "s13" -> moveByCard(cleared, 0, card.title)
+            "c15" -> moveByCard(cleared, (p.position + 40 - 3) % 40, card.title, backwards = true)
+            "c13", "s15" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(getOutOfJailCards = p.getOutOfJailCards + 1))), card.title)
+            "c6" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money - 15))), "${card.title}: -M15")
+            "c7" -> {
+                val owned = cleared.properties.filterValues { it.ownerId == p.id }
+                val houses = owned.values.sumOf { it.houses }
+                val hotels = owned.values.count { it.hotel }
+                finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money - houses * 25 - hotels * 100))), "${card.title}: -M${houses * 25 + hotels * 100}")
+            }
+            "c8" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money + 150))), "${card.title}: +M150")
+            "c14" -> {
+                val otherPlayers = cleared.players.filter { it.id != p.id && !it.bankrupt }
+                val updated = cleared.players.map { player ->
+                    when {
+                        player.id == p.id -> player.copy(money = player.money - otherPlayers.size * 50)
+                        player in otherPlayers -> player.copy(money = player.money + 50)
+                        else -> player
+                    }
+                }
+                finishCard(cleared.copy(players = updated), "${card.title}: zapłać każdemu M50")
+            }
+            "s1" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money + 200))), "${card.title}: +M200")
+            "s2" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money + 20))), "${card.title}: +M20")
+            "s3" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money + 50))), "${card.title}: +M50")
+            "s4", "s5", "s6" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money + 100))), "${card.title}: +M100")
+            "s7" -> {
+                val otherPlayers = cleared.players.filter { it.id != p.id && !it.bankrupt }
+                val updated = cleared.players.map { player ->
+                    when {
+                        player.id == p.id -> player.copy(money = player.money + otherPlayers.size * 10)
+                        player in otherPlayers -> player.copy(money = player.money - 10)
+                        else -> player
+                    }
+                }
+                finishCard(cleared.copy(players = updated), "${card.title}: +M${otherPlayers.size * 10}")
+            }
+            "s8" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money + 10))), "${card.title}: +M10")
+            "s9" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money + 25))), "${card.title}: +M25")
+            "s10", "s11" -> finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money - 50))), "${card.title}: -M50")
+            "s12" -> {
+                val owned = cleared.properties.filterValues { it.ownerId == p.id }
+                val houses = owned.values.sumOf { it.houses }
+                val hotels = owned.values.count { it.hotel }
+                finishCard(cleared.copy(players = cleared.players.replace(p.copy(money = p.money - houses * 40 - hotels * 115))), "${card.title}: -M${houses * 40 + hotels * 115}")
+            }
+            else -> finishCard(cleared, card.title)
+        }
+    }
+
+    private fun finishCard(state: GameState, message: String): GameState {
+        val p = state.players[state.currentPlayer]
+        return finishMovement(state.copy(lastMessage = message, history = state.history.add("${p.name} wykonał(a) kartę: $message", p.id)), message)
+    }
+
+    private fun moveByCard(state: GameState, destination: Int, message: String, backwards: Boolean = false): GameState {
+        val p = state.players[state.currentPlayer]
+        val crossedStart = !backwards && destination <= p.position && destination != 0 || (!backwards && destination == 0 && p.position != 0)
+        val moved = p.copy(position = destination, money = p.money + if (crossedStart) 200 else 0)
+        val next = state.copy(players = state.players.replace(moved), movementPath = listOf(destination), lastMessage = "$message — ${GameData.fields[destination].name}", history = state.history.add("${p.name}: $message", p.id))
+        return resolveLanding(next)
+    }
+
+    private fun nearestAhead(position: Int, targets: List<Int>): Int = targets.minBy { (it - position + 40) % 40 }.let { if (it == position) targets.first() else it }
 
     private fun sendToJail(state: GameState, p: PlayerState, message: String) = endTurn(state.copy(players = state.players.replace(p.copy(position = 10, inJail = true, jailAttempts = 0)), phase = TurnPhase.WAITING_FOR_ROLL), message)
     private fun finishMovement(state: GameState, message: String): GameState = if (state.doublesCount > 0) state.copy(phase = TurnPhase.WAITING_FOR_ROLL, lastMessage = "$message • dublet, rzuć ponownie") else endTurn(state, message)
