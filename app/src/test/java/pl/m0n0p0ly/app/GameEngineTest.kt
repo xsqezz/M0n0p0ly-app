@@ -13,7 +13,7 @@ class GameEngineTest {
     }
 
     @Test fun jailBlocksRolling() {
-        val state = GameState(listOf(PlayerState(0, "A", position = 30), PlayerState(1, "B")), currentPlayer = 0)
+        val state = GameState(listOf(PlayerState(0, "A", position = 28), PlayerState(1, "B")), currentPlayer = 0)
         val jailed = GameEngine.roll(state, 1, 1)
         assertTrue(jailed.players[0].inJail)
         val unchanged = GameEngine.roll(jailed, 6, 6)
