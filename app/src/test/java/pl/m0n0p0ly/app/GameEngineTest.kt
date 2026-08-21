@@ -5,7 +5,7 @@ import org.junit.Test
 
 class GameEngineTest {
     @Test fun cannotBuySamePropertyTwice() {
-        val first = GameEngine.roll(GameEngine.newGame(listOf("A", "B")), 1, 0)
+        val first = GameEngine.roll(GameState(listOf(PlayerState(0, "A", position = 39), PlayerState(1, "B"))), 1, 1)
         val bought = GameEngine.buy(first)
         assertEquals(0, bought.properties[1]?.ownerId)
         assertFalse(bought.awaitingPurchase)

@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
             Text("M0N0P0LY", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(bottom = 6.dp))
             PlayerCards(state)
             Card(Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF11151B)), shape = RoundedCornerShape(14.dp)) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("TWOJA TURA", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Bold); Text(if (current.inJail) "Jesteś w więzieniu" else "Rzuć kośćmi, aby się poruszyć", color = Color.LightGray, fontSize = 13.sp) }; Text(state.lastRoll?.toString() ?: "–", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black) }
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(if (state.phase == TurnPhase.AUCTION) "LICYTACJA" else if (current.id == 0) "TWOJA TURA" else "TURA ${current.name.uppercase()}", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Bold); Text(if (current.inJail) "Jesteś w więzieniu" else if (current.id == 0) "Rzuć kośćmi, aby się poruszyć" else "Przekaż telefon ${current.name}", color = Color.LightGray, fontSize = 13.sp) }; Text(state.lastDice?.total?.toString() ?: "–", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black) }
             }
             Board(state)
             CurrentFieldPanel(state)
