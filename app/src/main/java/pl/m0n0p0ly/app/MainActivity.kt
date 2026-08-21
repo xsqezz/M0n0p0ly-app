@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 8.dp)) {
             Text("M0N0P0LY", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(bottom = 6.dp))
             PlayerCards(state)
-            TurnPanel(state)
+            TurnPanel(state, latestRollMarker)
             Board(state)
             CurrentFieldPanel(state)
             when {
@@ -256,7 +256,7 @@ private fun RentLine(label: String, amount: String) {
     }
 }
 
-@Composable private fun TurnPanel(state: GameState) {
+@Composable private fun TurnPanel(state: GameState, rollMarker: Int) {
     val current = state.players[state.currentPlayer]
     Card(Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF11151B)), shape = RoundedCornerShape(14.dp)) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -274,8 +274,8 @@ private fun RentLine(label: String, amount: String) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                DiceBox(state.lastDice?.first, latestRollMarker)
-                DiceBox(state.lastDice?.second, latestRollMarker)
+                DiceBox(state.lastDice?.first, rollMarker)
+                DiceBox(state.lastDice?.second, rollMarker)
             }
         }
     }
