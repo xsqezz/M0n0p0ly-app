@@ -8,8 +8,17 @@ class GameEngineTest {
         val first = GameEngine.roll(GameState(listOf(PlayerState(0, "A", position = 39), PlayerState(1, "B"))), 1, 1)
         val bought = GameEngine.buy(first)
         assertEquals(0, bought.properties[1]?.ownerId)
-        assertFalse(bought.awaitingPurchase)
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, bought.phase)
         assertEquals("A", bought.players[0].name)
+    }
+
+    @Test fun decliningPropertyStartsAuctionFromTen() {
+        val state = GameState(listOf(PlayerState(0, "A", position = 39), PlayerState(1, "B")))
+        val decision = GameEngine.roll(state, 1, 1)
+        val auction = GameEngine.declinePurchase(decision)
+        assertEquals(TurnPhase.AUCTION, auction.phase)
+        assertEquals(0, auction.auction?.highBid)
+        assertEquals(2, auction.auction?.order?.size)
     }
 
     @Test fun jailBlocksRolling() {
