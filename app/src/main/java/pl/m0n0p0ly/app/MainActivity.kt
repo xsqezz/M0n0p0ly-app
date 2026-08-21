@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,8 +84,8 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    if (showProperties) PropertiesDialog(state) { showProperties = false }
-    if (showManagement) ManagementDialog(state, update) { showManagement = false }
+    if (showProperties) PropertyCarouselDialog(state, update, managementMode = false) { showProperties = false }
+    if (showManagement) PropertyCarouselDialog(state, update, managementMode = true) { showManagement = false }
     if (showTrade) TradeDialog(state, update) { showTrade = false }
     if (showHistory) HistoryDialog(state) { showHistory = false }
 }
@@ -95,6 +97,122 @@ class MainActivity : ComponentActivity() {
 @Composable private fun TradePanel(state: GameState, update: (GameState) -> Unit) { val offer = state.tradeOffer ?: return; val from = state.players.first { it.id == offer.fromId }; val to = state.players.first { it.id == offer.toId }; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF202A36)), shape = RoundedCornerShape(12.dp)) { Column(Modifier.padding(12.dp)) { Text("OFERTA HANDLU", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Bold); Text("${from.name} → ${to.name}", fontWeight = FontWeight.Bold); Text("Gotówka: M${offer.offeredCash} za M${offer.requestedCash}", color = Color.LightGray, fontSize = 12.sp); Text("Nieruchomości: ${offer.offeredPropertyIndexes.size} za ${offer.requestedPropertyIndexes.size}", color = Color.LightGray, fontSize = 12.sp); Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) { Button({ update(GameEngine.reduce(state, GameAction.AcceptTrade)) }, Modifier.weight(1f)) { Text("AKCEPTUJ") }; OutlinedButton({ update(GameEngine.reduce(state, GameAction.RejectTrade)) }, Modifier.weight(1f)) { Text("ODRZUĆ") } } } } }
 
 @Composable private fun PropertiesDialog(state: GameState, close: () -> Unit) { val p = state.players[state.currentPlayer]; val owned = state.properties.filter { it.value.ownerId == p.id }.keys.sorted(); AlertDialog(onDismissRequest = close, title = { Text("MOJE WŁASNOŚCI (${owned.size})") }, text = { if (owned.isEmpty()) Text("${p.name} nie ma jeszcze nieruchomości.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) { items(owned) { index -> val field = GameData.fields[index]; val prop = state.properties[index]!!; Surface(color = tileColor(field.group), shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) { Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(field.name, color = Color(0xFF17191E), fontWeight = FontWeight.Bold); Text("Cena M${field.price ?: 0} • Hipoteka M${GameData.mortgage(field.price ?: 0)}", color = Color(0xFF303030), fontSize = 11.sp) }; Text(if (prop.mortgaged) "HIPOTEKA" else "AKTYWNA", color = Color(0xFF17191E), fontSize = 10.sp, fontWeight = FontWeight.Bold) } } } } }, confirmButton = { TextButton(onClick = close) { Text("ZAMKNIJ") } }) }
+
+@Composable
+private fun PropertyCarouselDialog(state: GameState, update: (GameState) -> Unit, managementMode: Boolean, close: () -> Unit) {
+    val player = state.players[state.currentPlayer]
+    val owned = state.properties.filter { it.value.ownerId == player.id }.keys.sorted()
+    var selectedPage by remember { mutableIntStateOf(0) }
+    val page = selectedPage.coerceIn(0, (owned.size - 1).coerceAtLeast(0))
+
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(if (managementMode) "ZARZĄDZANIE NIERUCHOMOŚCIAMI" else "MOJE WŁASNOŚCI") },
+        text = {
+            if (owned.isEmpty()) {
+                Text("${player.name} nie ma jeszcze nieruchomości.")
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .pointerInput(owned.size) {
+                            var totalDrag = 0f
+                            detectHorizontalDragGestures(
+                                onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+                                onDragEnd = {
+                                    if (owned.size > 1 && totalDrag < -48f) selectedPage = (selectedPage + 1) % owned.size
+                                    if (owned.size > 1 && totalDrag > 48f) selectedPage = (selectedPage - 1 + owned.size) % owned.size
+                                }
+                            )
+                        },
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(enabled = owned.size > 1, onClick = { selectedPage = (page - 1 + owned.size) % owned.size }) { Text("‹", fontSize = 28.sp) }
+                        Text("${page + 1} / ${owned.size}", color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                        TextButton(enabled = owned.size > 1, onClick = { selectedPage = (page + 1) % owned.size }) { Text("›", fontSize = 28.sp) }
+                    }
+                    owned.getOrNull(page)?.let { index -> FullPropertyCard(state, index, managementMode, update) }
+                    Text("Przesuń kartę w lewo lub w prawo", color = Color.Gray, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = close) { Text("ZAMKNIJ") } }
+    )
+}
+
+@Composable
+private fun FullPropertyCard(state: GameState, index: Int, managementMode: Boolean, update: (GameState) -> Unit) {
+    val definition = BoardDefinitions.byIndex[index] ?: return
+    val property = state.properties[index] ?: return
+    val ownerName = property.ownerId?.let { state.players.getOrNull(it)?.name } ?: "BANK"
+    val accent = when (definition.kind) {
+        Kind.STREET -> tileColor(definition.group)
+        Kind.STATION -> Color(0xFFB9BEC4)
+        Kind.UTILITY -> Color(0xFFA8DADC)
+        Kind.SPECIAL -> Color(0xFFEFE7D8)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EBDD)),
+        border = androidx.compose.foundation.BorderStroke(2.dp, accent),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.fillMaxWidth().height(24.dp).background(accent, RoundedCornerShape(4.dp)))
+            Text(definition.name.uppercase(), color = Color(0xFF17191E), fontWeight = FontWeight.Black, fontSize = 17.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text("CENA ZAKUPU  M${definition.price}", color = Color(0xFF17191E), fontWeight = FontWeight.Bold, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text("WŁAŚCICIEL: $ownerName", color = Color(0xFF3D3A36), fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Divider(color = Color(0xFFB6AA99))
+
+            when (definition.kind) {
+                Kind.STREET -> {
+                    val rent = definition.rent ?: return@Column
+                    Text("CZYNSZ", color = Color(0xFF17191E), fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    RentLine("Bez budynków", "M${rent.base}")
+                    RentLine("Pełna grupa", "M${rent.monopoly}")
+                    rent.houses.forEachIndexed { houseCount, amount -> RentLine("${houseCount + 1} ${if (houseCount == 0) "DOM" else "DOMY"}", "M$amount") }
+                    RentLine("HOTEL", "M${rent.hotel}")
+                    Divider(color = Color(0xFFB6AA99))
+                    Text("DOM  M${definition.houseCost}   •   HOTEL  M${definition.hotelCost}", color = Color(0xFF17191E), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                }
+                Kind.STATION -> {
+                    Text("CZYNSZ WEDŁUG LICZBY DWORCÓW", color = Color(0xFF17191E), fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    listOf(25, 50, 100, 200).forEachIndexed { count, rent -> RentLine("${count + 1} dworzec${if (count == 0) "" else "e"}", "M$rent") }
+                }
+                Kind.UTILITY -> {
+                    Text("CZYNSZ WEDŁUG WYNIKU RZUTU", color = Color(0xFF17191E), fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    RentLine("1 obiekt", "4 × wynik rzutu")
+                    RentLine("2 obiekty", "10 × wynik rzutu")
+                }
+                Kind.SPECIAL -> Unit
+            }
+
+            Text("HIPOTEKA: M${GameData.mortgage(definition.price)}   •   SPŁATA: M${GameData.redemption(definition.price)}", color = Color(0xFF3D3A36), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            if (property.mortgaged) Text("POD HIPOTEKĄ — CZYNSZ NIE JEST POBIERANY", color = Color(0xFFB3261E), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            else Text(if (property.hotel) "AKTUALNIE: HOTEL" else "AKTUALNIE: ${property.houses} DOMÓW", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+
+            if (managementMode) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    if (definition.kind == Kind.STREET && property.houses < 4 && !property.hotel && !property.mortgaged) Button({ update(GameEngine.reduce(state, GameAction.BuyHouse(index))) }, Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("DOM", fontSize = 10.sp) }
+                    if (definition.kind == Kind.STREET && property.houses == 4 && !property.hotel && !property.mortgaged) Button({ update(GameEngine.reduce(state, GameAction.BuyHotel(index))) }, Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("HOTEL", fontSize = 10.sp) }
+                    if (definition.kind == Kind.STREET && (property.houses > 0 || property.hotel)) OutlinedButton({ update(GameEngine.reduce(state, GameAction.SellBuilding(index))) }, Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("SPRZEDAJ", fontSize = 9.sp) }
+                }
+                if (property.mortgaged) Button({ update(GameEngine.reduce(state, GameAction.UnmortgageProperty(index))) }, Modifier.fillMaxWidth()) { Text("SPŁAĆ HIPOTEKĘ") }
+                else if (property.houses == 0 && !property.hotel) OutlinedButton({ update(GameEngine.reduce(state, GameAction.MortgageProperty(index))) }, Modifier.fillMaxWidth()) { Text("ZASTAW NIERUCHOMOŚĆ") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RentLine(label: String, amount: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = Color(0xFF3D3A36), fontSize = 11.sp)
+        Text(amount, color = Color(0xFF17191E), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+    }
+}
 
 @Composable private fun TurnPanel(state: GameState) {
     val current = state.players[state.currentPlayer]
