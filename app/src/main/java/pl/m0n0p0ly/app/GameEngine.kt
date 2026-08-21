@@ -2,7 +2,8 @@ package pl.m0n0p0ly.app
 
 data class PlayerState(val id: Int, val name: String, val money: Int = 1500, val position: Int = 0, val inJail: Boolean = false, val jailTurns: Int = 0, val bankrupt: Boolean = false)
 data class PropertyState(val ownerId: Int? = null, val houses: Int = 0, val hotel: Boolean = false, val mortgaged: Boolean = false)
-data class GameState(val players: List<PlayerState>, val properties: Map<Int, PropertyState> = emptyMap(), val currentPlayer: Int = 0, val lastRoll: Int? = null, val lastMessage: String = "Wybierz graczy i rozpocznij grę", val awaitingPurchase: Boolean = false, val gameOver: Boolean = false)
+data class AuctionState(val propertyIndex: Int, val highBid: Int = 10, val highestBidder: Int? = null, val order: List<Int>, val currentIndex: Int = 0, val passed: Set<Int> = emptySet())
+data class GameState(val players: List<PlayerState>, val properties: Map<Int, PropertyState> = emptyMap(), val currentPlayer: Int = 0, val lastRoll: Int? = null, val lastMessage: String = "Wybierz graczy i rozpocznij grę", val awaitingPurchase: Boolean = false, val auction: AuctionState? = null, val gameOver: Boolean = false)
 
 object GameEngine {
     fun newGame(names: List<String>): GameState = GameState(names.take(5).mapIndexed { i, n -> PlayerState(i, n.ifBlank { "Gracz ${i + 1}" }) }, lastMessage = "Tura ${names.firstOrNull() ?: "Gracz 1"}")
@@ -31,7 +32,40 @@ object GameEngine {
         return nextTurn(next)
     }
 
-    fun declinePurchase(state: GameState): GameState = if (state.awaitingPurchase) nextTurn(state.copy(awaitingPurchase = false, lastMessage = "Nieruchomość pozostaje w banku")) else state
+    fun declinePurchase(state: GameState): GameState {
+        if (!state.awaitingPurchase) return state.copy(lastMessage = "Nie ma teraz nieruchomości do licytacji")
+        val start = state.currentPlayer
+        val order = state.players.filter { !it.bankrupt && it.money >= 10 }.sortedBy { (it.id - start + state.players.size) % state.players.size }.map { it.id }
+        if (order.isEmpty()) return nextTurn(state.copy(awaitingPurchase = false, lastMessage = "Nikt nie może wziąć udziału w licytacji"))
+        return state.copy(awaitingPurchase = false, auction = AuctionState(state.players[state.currentPlayer].position, order = order), currentPlayer = order.first(), lastMessage = "Licytacja od M10: ${state.players[order.first()].name} zaczyna")
+    }
+
+    fun bid(state: GameState): GameState {
+        val auction = state.auction ?: return state
+        val bidder = auction.order[auction.currentIndex]; val amount = if (auction.highestBidder == null) 10 else auction.highBid + 10
+        if (state.players[bidder].money < amount) return passAuction(state.copy(lastMessage = "${state.players[bidder].name} nie ma wystarczającej kwoty i pasuje"))
+        return advanceAuction(state.copy(auction = auction.copy(highBid = amount, highestBidder = bidder), currentPlayer = bidder, lastMessage = "${state.players[bidder].name} podbija do M$amount"), bidder)
+    }
+
+    fun passAuction(state: GameState): GameState {
+        val auction = state.auction ?: return state
+        val bidder = auction.order[auction.currentIndex]
+        return advanceAuction(state.copy(auction = auction.copy(passed = auction.passed + bidder), lastMessage = "${state.players[bidder].name} pasuje"), bidder)
+    }
+
+    private fun advanceAuction(state: GameState, actedId: Int): GameState {
+        val auction = state.auction ?: return state
+        val passed = auction.passed
+        val active = auction.order.filter { it !in passed && it != auction.highestBidder }
+        if (active.isEmpty()) {
+            val winner = auction.highestBidder
+            if (winner == null) return nextTurn(state.copy(auction = null, lastMessage = "Nikt nie kupił ${GameData.fields[auction.propertyIndex].name}"))
+            val price = auction.highBid; val winnerPlayer = state.players[winner]
+            return nextTurn(state.copy(players = state.players.updated(winnerPlayer.copy(money = winnerPlayer.money - price)), properties = state.properties + (auction.propertyIndex to PropertyState(winner)), auction = null, lastMessage = "${winnerPlayer.name} wygrywa licytację za M$price"))
+        }
+        val next = active.first()
+        return state.copy(auction = auction.copy(currentIndex = auction.order.indexOf(next)), currentPlayer = next)
+    }
 
     fun leaveJail(state: GameState): GameState {
         val p = state.players[state.currentPlayer]
