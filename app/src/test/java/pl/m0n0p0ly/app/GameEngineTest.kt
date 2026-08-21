@@ -55,4 +55,23 @@ class GameEngineTest {
         assertEquals(1700, resolved.players[0].money)
         assertEquals(0, resolved.players[0].position)
     }
+
+    @Test fun buildingRequiresCompleteGroupAndEvenBuild() {
+        val properties = mapOf(1 to PropertyState(ownerId = 0), 3 to PropertyState(ownerId = 0))
+        val state = GameState(listOf(PlayerState(0, "A"), PlayerState(1, "B")), properties = properties)
+        val built = GameEngine.reduce(state, GameAction.BuyHouse(1))
+        assertEquals(1, built.properties[1]?.houses)
+        val uneven = GameEngine.reduce(built, GameAction.BuyHouse(1))
+        assertTrue(uneven.lastMessage.startsWith("BŁĄD"))
+    }
+
+    @Test fun mortgageAndRedemptionUseWholeUnitValues() {
+        val state = GameState(listOf(PlayerState(0, "A")), properties = mapOf(11 to PropertyState(ownerId = 0)))
+        val mortgaged = GameEngine.reduce(state, GameAction.MortgageProperty(11))
+        assertEquals(1570, mortgaged.players[0].money)
+        assertTrue(mortgaged.properties[11]!!.mortgaged)
+        val redeemed = GameEngine.reduce(mortgaged, GameAction.UnmortgageProperty(11))
+        assertEquals(1493, redeemed.players[0].money)
+        assertFalse(redeemed.properties[11]!!.mortgaged)
+    }
 }
