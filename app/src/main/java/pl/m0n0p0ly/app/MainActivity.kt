@@ -132,18 +132,29 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun BoardTileLabel(label: String) {
-    Text(
-        text = label,
-        fontSize = tileFontSize(label),
-        lineHeight = 6.5.sp,
-        maxLines = 3,
-        softWrap = false,
-        overflow = TextOverflow.Clip,
-        textAlign = TextAlign.Center,
-        fontWeight = FontWeight.Bold,
-        color = Color(0xFF17191E),
-        modifier = Modifier.fillMaxWidth().height(21.dp)
-    )
+    BoxWithConstraints(Modifier.fillMaxWidth().height(21.dp), contentAlignment = Alignment.TopCenter) {
+        val longestWord = label.lines().maxOfOrNull { it.length }?.coerceAtLeast(1) ?: 1
+        val baseSize = when {
+            longestWord >= 14 -> 4.4f
+            longestWord >= 12 -> 4.7f
+            longestWord >= 10 -> 5.0f
+            longestWord >= 8 -> 5.3f
+            else -> 5.8f
+        }
+        val fittedSize = minOf(baseSize, maxWidth.value / (longestWord * 0.58f)).coerceIn(4f, 5.8f)
+        Text(
+            text = label,
+            fontSize = fittedSize.sp,
+            lineHeight = 6.sp,
+            maxLines = 3,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF17191E),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 private enum class TileIcon { WATER, POWER, TRAIN, CHANCE, CHEST }
@@ -198,7 +209,7 @@ private fun tileFontSize(label: String) = when { label.length > 18 -> 5.sp; labe
     }
 }
 
-@Composable private fun CurrentFieldPanel(state: GameState) { val p = state.players[state.currentPlayer]; val f = GameData.fields[p.position]; val definition = BoardDefinitions.byIndex[p.position]; val property = state.properties[p.position]; val ownerName = property?.ownerId?.let { state.players.getOrNull(it)?.name }; val rightInfo = when { p.position == 0 -> "+M200"; definition != null -> "M${definition.price}"; else -> null }; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF17191E)), shape = RoundedCornerShape(12.dp)) { Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("AKTUALNE POLE", color = Color.Gray, fontSize = 10.sp); Text(f.name, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(when { p.position == 0 -> "Przejście przez START: +M200"; ownerName != null -> "Właściciel: $ownerName • Czynsz: M${definition?.rent?.base ?: "—"}"; definition != null -> "Wolna nieruchomość • Cena M${definition.price}"; else -> "Pole specjalne" }, color = Color.LightGray, fontSize = 12.sp, maxLines = 2) }; if (rightInfo != null) Text(rightInfo, color = Color(0xFF27D17F), fontWeight = FontWeight.Bold, fontSize = 18.sp) } } }
+@Composable private fun CurrentFieldPanel(state: GameState) { val p = state.players[state.currentPlayer]; val f = GameData.fields[p.position]; val definition = BoardDefinitions.byIndex[p.position]; val property = state.properties[p.position]; val ownerName = property?.ownerId?.let { state.players.getOrNull(it)?.name }; val rightInfo = when { p.position == 0 -> "+M200"; definition != null && ownerName == null -> "M${definition.price}"; else -> null }; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF17191E)), shape = RoundedCornerShape(12.dp)) { Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("AKTUALNE POLE", color = Color.Gray, fontSize = 10.sp); Text(f.name, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(when { p.position == 0 -> "Przejście przez START: +M200"; ownerName != null -> "Właściciel: $ownerName • Czynsz: M${definition?.rent?.base ?: "—"}"; definition != null -> "Wolna nieruchomość • Cena M${definition.price}"; else -> "Pole specjalne" }, color = Color.LightGray, fontSize = 12.sp, maxLines = 2) }; if (rightInfo != null) Text(rightInfo, color = Color(0xFF27D17F), fontWeight = FontWeight.Bold, fontSize = 18.sp) } } }
 
 @Composable private fun ManagementDialog(state: GameState, update: (GameState) -> Unit, close: () -> Unit) { val p = state.players[state.currentPlayer]; val owned = state.properties.filter { it.value.ownerId == p.id }.keys.sorted(); AlertDialog(onDismissRequest = close, title = { Text("BUDYNKI I HIPOTEKI") }, text = { if (owned.isEmpty()) Text("${p.name} nie ma jeszcze nieruchomości.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(owned) { index -> val definition = BoardDefinitions.byIndex[index] ?: return@items; val property = state.properties[index]!!; Card(colors = CardDefaults.cardColors(containerColor = tileColor(definition.group)), modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text(definition.name, color = Color(0xFF17191E), fontWeight = FontWeight.Bold); Text(if (property.hotel) "HOTEL" else "DOMY: ${property.houses}", color = Color(0xFF17191E), fontSize = 11.sp); Text(if (property.mortgaged) "POD HIPOTEKĄ" else "AKTYWNA", color = Color(0xFF17191E), fontSize = 11.sp); Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { if (definition.kind == Kind.STREET) { if (property.houses < 4 && !property.hotel) TextButton({ update(GameEngine.reduce(state, GameAction.BuyHouse(index))) }) { Text("DOM") }; if (property.houses == 4 && !property.hotel) TextButton({ update(GameEngine.reduce(state, GameAction.BuyHotel(index))) }) { Text("HOTEL") }; if (property.houses > 0 || property.hotel) TextButton({ update(GameEngine.reduce(state, GameAction.SellBuilding(index))) }) { Text("SPRZEDAJ") } }; if (property.mortgaged) TextButton({ update(GameEngine.reduce(state, GameAction.UnmortgageProperty(index))) }) { Text("SPŁAĆ") } else TextButton({ update(GameEngine.reduce(state, GameAction.MortgageProperty(index))) }) { Text("HIPOTEKA") } } } } } } }, confirmButton = { TextButton(onClick = close) { Text("ZAMKNIJ") } }) }
 
