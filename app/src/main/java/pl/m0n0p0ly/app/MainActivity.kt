@@ -3,6 +3,7 @@ package pl.m0n0p0ly.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -17,7 +18,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,7 +68,7 @@ class MainActivity : ComponentActivity() {
     var showTrade by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     Surface(Modifier.fillMaxSize(), color = Color(0xFF080A0D)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 8.dp)) {
             Text("M0N0P0LY", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(bottom = 6.dp))
             PlayerCards(state)
             TurnPanel(state)
@@ -96,11 +102,11 @@ class MainActivity : ComponentActivity() {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("TURA ${state.turnNumber}", color = Color(0xFF8B9CAF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text(if (state.phase == TurnPhase.AUCTION) "LICYTACJA" else if (current.id == 0) "TWOJA TURA" else "TURA ${current.name.uppercase()}", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Black, fontSize = 21.sp)
+                Text(if (state.phase == TurnPhase.AUCTION) "LICYTACJA" else if (current.id == 0) "TWOJA TURA" else "TURA ${playerGenitive(current.name).uppercase()}", color = Color(0xFF1AA7FF), fontWeight = FontWeight.Black, fontSize = 21.sp)
                 Text(when {
                     current.inJail -> "Więzienie: wyrzuć dublet, zapłać M50 albo użyj karty"
                     current.id == 0 -> "Rzuć kośćmi, aby się poruszyć"
-                    else -> "Przekaż telefon ${current.name}"
+                    else -> "Przekaż telefon ${playerDative(current.name)}"
                 }, color = Color.LightGray, fontSize = 12.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -113,7 +119,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun DiceBox(value: Int?) { Surface(color = Color(0xFFF2F3F5), shape = RoundedCornerShape(6.dp), modifier = Modifier.size(31.dp)) { Box(contentAlignment = Alignment.Center) { Text(value?.toString() ?: "–", color = Color(0xFF17191E), fontSize = 18.sp, fontWeight = FontWeight.Black) } } }
 
-@Composable private fun PlayerCards(state: GameState) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) { state.players.forEach { p -> val groups = state.properties.filter { it.value.ownerId == p.id }.keys.mapNotNull { BoardDefinitions.byIndex[it]?.group }.distinct(); Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = if (p.id == state.currentPlayer) Color(0xFF102B3D) else Color(0xFF17191E)), shape = RoundedCornerShape(10.dp), border = if (p.id == state.currentPlayer) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF1AA7FF)) else null) { Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(tokenIcon(p.id), fontSize = 20.sp); Text(p.name.take(9), fontSize = 10.sp, maxLines = 1); Text("M${p.money}", fontWeight = FontWeight.Bold, fontSize = 12.sp); Text(if (p.inJail) "WIĘZIENIE" else GameData.fields[p.position].name, fontSize = 8.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis); Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 3.dp)) { groups.take(6).forEach { Box(Modifier.size(7.dp).background(tileColor(it), RoundedCornerShape(2.dp))) } } } } } } }
+@Composable private fun PlayerCards(state: GameState) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) { state.players.forEach { p -> val groups = state.properties.filter { it.value.ownerId == p.id }.keys.mapNotNull { BoardDefinitions.byIndex[it]?.group }.distinct(); Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = if (p.id == state.currentPlayer) Color(0xFF102B3D) else Color(0xFF17191E)), shape = RoundedCornerShape(10.dp), border = if (p.id == state.currentPlayer) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF1AA7FF)) else null) { Column(Modifier.padding(horizontal = 4.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(tokenIcon(p.id), fontSize = 20.sp); Text(p.name, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("M${p.money}", fontWeight = FontWeight.Bold, fontSize = 12.sp); Text(playerLocationLabel(p), fontSize = 7.5.sp, lineHeight = 8.sp, color = Color.Gray, maxLines = 2, textAlign = TextAlign.Center); Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 3.dp)) { groups.take(6).forEach { Box(Modifier.size(7.dp).background(tileColor(it), RoundedCornerShape(2.dp))) } } } } } } }
 
 @Composable private fun Board(state: GameState) { val order = listOf(0,1,2,3,4,5,6,7,8,9,10,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11); Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFDED4C2)).border(2.dp, Color(0xFF5C6068), RoundedCornerShape(14.dp)).padding(3.dp)) { Column(Modifier.fillMaxSize()) { for (r in 0..9) Row(Modifier.weight(1f)) { for (c in 0..9) { val index = when { r == 0 -> order[c]; r == 9 -> order[30 - c]; c == 0 -> order[39 - r]; c == 9 -> order[10 + r]; else -> -1 }; if (index >= 0) BoardTile(index, state) else Box(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(Color(0xFFEDE5D7))) } } }; BoardCenter() } }
 
@@ -121,10 +127,61 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun DeckCard(color: Color, symbol: String) { Box(Modifier.size(38.dp, 48.dp).rotate(-8f).background(color, RoundedCornerShape(4.dp)).border(2.dp, Color.White, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) { Text(symbol, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black) } }
 
-@Composable private fun RowScope.BoardTile(index: Int, state: GameState) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(tileColor(f.group), RoundedCornerShape(4.dp)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { Text(boardLabel(index, f), fontSize = 6.2.sp, lineHeight = 6.5.sp, maxLines = 3, overflow = TextOverflow.Clip, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color(0xFF17191E), modifier = Modifier.fillMaxWidth().height(21.dp)); Row(Modifier.height(10.dp), verticalAlignment = Alignment.CenterVertically) { players.forEach { Text(tokenIcon(it.id), fontSize = 7.sp) }; if (owner != null) Text("◆${owner + 1}", fontSize = 6.sp, color = Color(0xFF17191E)) }; f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(8.dp)) } }
+@Composable private fun RowScope.BoardTile(index: Int, state: GameState) { val f = GameData.fields[index]; val players = state.players.filter { it.position == index && !it.bankrupt }; val owner = state.properties[index]?.ownerId; val icon = tileIcon(index); Column(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(tileColor(f.group), RoundedCornerShape(4.dp)).padding(horizontal = 1.dp, vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) { if (icon == null) Text(boardLabel(index, f), fontSize = tileFontSize(boardLabel(index, f)), lineHeight = 6.5.sp, maxLines = 3, overflow = TextOverflow.Clip, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color(0xFF17191E), modifier = Modifier.fillMaxWidth().height(21.dp)) else Box(Modifier.fillMaxWidth().height(21.dp), contentAlignment = Alignment.Center) { BoardTileIcon(icon) }; TilePlayers(players, owner); f.price?.let { Text("M$it", fontSize = 6.sp, color = Color(0xFF17191E), maxLines = 1, modifier = Modifier.height(8.dp)) } }
 }
 
-@Composable private fun CurrentFieldPanel(state: GameState) { val p = state.players[state.currentPlayer]; val f = GameData.fields[p.position]; val definition = BoardDefinitions.byIndex[p.position]; val property = state.properties[p.position]; val ownerName = property?.ownerId?.let { state.players.getOrNull(it)?.name }; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF17191E)), shape = RoundedCornerShape(12.dp)) { Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("AKTUALNE POLE", color = Color.Gray, fontSize = 10.sp); Text(f.name, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(when { p.position == 0 -> "Przejście przez START: +M200"; ownerName != null -> "Właściciel: $ownerName • Cena M${definition?.price ?: "—"}"; definition != null -> "Cena M${definition.price} • Czynsz od M${definition.rent?.base ?: "—"}"; else -> "Pole specjalne" }, color = Color.LightGray, fontSize = 12.sp, maxLines = 2) }; Text("M${p.money}", color = Color(0xFF27D17F), fontWeight = FontWeight.Bold, fontSize = 18.sp) } } }
+private enum class TileIcon { WATER, POWER, TRAIN, CHANCE, CHEST }
+private fun tileIcon(index: Int): TileIcon? = when (index) { 6, 22, 36 -> TileIcon.CHANCE; 2, 18, 33 -> TileIcon.CHEST; 5, 15, 25, 35 -> TileIcon.TRAIN; 12 -> TileIcon.POWER; 28 -> TileIcon.WATER; else -> null }
+private fun tileFontSize(label: String) = when { label.length > 18 -> 5.sp; label.length > 13 -> 5.5.sp; else -> 6.2.sp }
+
+@Composable private fun TilePlayers(players: List<PlayerState>, owner: Int?) { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.height(11.dp)) { players.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) { row.forEach { Text(tokenIcon(it.id), fontSize = 7.sp) } } }; if (owner != null) Text("◆${owner + 1}", fontSize = 5.5.sp, color = Color(0xFF17191E)) } }
+
+@Composable private fun BoardTileIcon(icon: TileIcon) {
+    if (icon == TileIcon.CHANCE) {
+        Text("?", color = Color(0xFFB76516), fontSize = 19.sp, fontWeight = FontWeight.Black)
+        return
+    }
+    Canvas(Modifier.size(24.dp)) {
+        val w = size.width
+        val h = size.height
+        val dark = Color(0xFF263238)
+        val line = Stroke(width = w * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        when (icon) {
+            TileIcon.WATER -> {
+                drawLine(dark, Offset(w * .12f, h * .35f), Offset(w * .68f, h * .35f), line.strokeWidth, StrokeCap.Round)
+                drawLine(dark, Offset(w * .68f, h * .35f), Offset(w * .68f, h * .62f), line.strokeWidth, StrokeCap.Round)
+                drawLine(dark, Offset(w * .55f, h * .18f), Offset(w * .82f, h * .18f), line.strokeWidth, StrokeCap.Round)
+                drawLine(dark, Offset(w * .68f, h * .18f), Offset(w * .68f, h * .35f), line.strokeWidth, StrokeCap.Round)
+                val drop = Path().apply { moveTo(w * .68f, h * .62f); cubicTo(w * .50f, h * .78f, w * .58f, h * .95f, w * .68f, h * .95f); cubicTo(w * .79f, h * .95f, w * .86f, h * .78f, w * .68f, h * .62f); close() }
+                drawPath(drop, Color(0xFF2D9CDB))
+            }
+            TileIcon.POWER -> {
+                drawCircle(Color(0xFFFFD54F), radius = w * .27f, center = Offset(w * .5f, h * .35f))
+                drawCircle(dark, radius = w * .27f, center = Offset(w * .5f, h * .35f), style = line)
+                drawLine(dark, Offset(w * .39f, h * .58f), Offset(w * .61f, h * .58f), line.strokeWidth)
+                drawLine(dark, Offset(w * .42f, h * .72f), Offset(w * .58f, h * .72f), line.strokeWidth)
+                drawLine(Color(0xFFFFB300), Offset(w * .48f, h * .08f), Offset(w * .43f, h * .28f), line.strokeWidth)
+            }
+            TileIcon.TRAIN -> {
+                drawRoundRect(dark, topLeft = Offset(w * .12f, h * .34f), size = androidx.compose.ui.geometry.Size(w * .76f, h * .34f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .06f, w * .06f))
+                drawRect(Color(0xFFECEFF1), topLeft = Offset(w * .22f, h * .42f), size = androidx.compose.ui.geometry.Size(w * .18f, h * .12f))
+                drawRect(Color(0xFFECEFF1), topLeft = Offset(w * .48f, h * .42f), size = androidx.compose.ui.geometry.Size(w * .18f, h * .12f))
+                drawLine(dark, Offset(w * .72f, h * .34f), Offset(w * .72f, h * .18f), line.strokeWidth)
+                drawLine(dark, Offset(w * .64f, h * .18f), Offset(w * .82f, h * .18f), line.strokeWidth)
+                drawCircle(dark, radius = w * .11f, center = Offset(w * .3f, h * .78f))
+                drawCircle(dark, radius = w * .11f, center = Offset(w * .7f, h * .78f))
+            }
+            TileIcon.CHEST -> {
+                drawRoundRect(Color(0xFF8D5524), topLeft = Offset(w * .12f, h * .3f), size = androidx.compose.ui.geometry.Size(w * .76f, h * .48f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .06f, w * .06f))
+                drawLine(Color(0xFFFFD166), Offset(w * .12f, h * .48f), Offset(w * .88f, h * .48f), line.strokeWidth)
+                drawRoundRect(Color(0xFFFFD166), topLeft = Offset(w * .44f, h * .45f), size = androidx.compose.ui.geometry.Size(w * .12f, h * .18f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .02f, w * .02f))
+            }
+            TileIcon.CHANCE -> Unit
+        }
+    }
+}
+
+@Composable private fun CurrentFieldPanel(state: GameState) { val p = state.players[state.currentPlayer]; val f = GameData.fields[p.position]; val definition = BoardDefinitions.byIndex[p.position]; val property = state.properties[p.position]; val ownerName = property?.ownerId?.let { state.players.getOrNull(it)?.name }; val rightInfo = when { p.position == 0 -> "+M200"; definition != null -> "M${definition.price}"; else -> null }; Card(Modifier.fillMaxWidth().padding(top = 7.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF17191E)), shape = RoundedCornerShape(12.dp)) { Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("AKTUALNE POLE", color = Color.Gray, fontSize = 10.sp); Text(f.name, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(when { p.position == 0 -> "Przejście przez START: +M200"; ownerName != null -> "Właściciel: $ownerName • Czynsz: M${definition?.rent?.base ?: "—"}"; definition != null -> "Wolna nieruchomość • Cena M${definition.price}"; else -> "Pole specjalne" }, color = Color.LightGray, fontSize = 12.sp, maxLines = 2) }; if (rightInfo != null) Text(rightInfo, color = Color(0xFF27D17F), fontWeight = FontWeight.Bold, fontSize = 18.sp) } } }
 
 @Composable private fun ManagementDialog(state: GameState, update: (GameState) -> Unit, close: () -> Unit) { val p = state.players[state.currentPlayer]; val owned = state.properties.filter { it.value.ownerId == p.id }.keys.sorted(); AlertDialog(onDismissRequest = close, title = { Text("BUDYNKI I HIPOTEKI") }, text = { if (owned.isEmpty()) Text("${p.name} nie ma jeszcze nieruchomości.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(owned) { index -> val definition = BoardDefinitions.byIndex[index] ?: return@items; val property = state.properties[index]!!; Card(colors = CardDefaults.cardColors(containerColor = tileColor(definition.group)), modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text(definition.name, color = Color(0xFF17191E), fontWeight = FontWeight.Bold); Text(if (property.hotel) "HOTEL" else "DOMY: ${property.houses}", color = Color(0xFF17191E), fontSize = 11.sp); Text(if (property.mortgaged) "POD HIPOTEKĄ" else "AKTYWNA", color = Color(0xFF17191E), fontSize = 11.sp); Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { if (definition.kind == Kind.STREET) { if (property.houses < 4 && !property.hotel) TextButton({ update(GameEngine.reduce(state, GameAction.BuyHouse(index))) }) { Text("DOM") }; if (property.houses == 4 && !property.hotel) TextButton({ update(GameEngine.reduce(state, GameAction.BuyHotel(index))) }) { Text("HOTEL") }; if (property.houses > 0 || property.hotel) TextButton({ update(GameEngine.reduce(state, GameAction.SellBuilding(index))) }) { Text("SPRZEDAJ") } }; if (property.mortgaged) TextButton({ update(GameEngine.reduce(state, GameAction.UnmortgageProperty(index))) }) { Text("SPŁAĆ") } else TextButton({ update(GameEngine.reduce(state, GameAction.MortgageProperty(index))) }) { Text("HIPOTEKA") } } } } } } }, confirmButton = { TextButton(onClick = close) { Text("ZAMKNIJ") } }) }
 
@@ -144,29 +201,58 @@ private fun boardLabel(index: Int, field: Field): String = when (index) {
     20 -> "BEZPŁATNY\nPARKING"
     30 -> "IDŹ DO\nWIĘZIENIA"
     38 -> "DOMIAR\nPODATKOWY"
-    1 -> "KONOPA."
+    1 -> "KONOPACKA"
     3 -> "STALOWA"
-    7 -> "RADZYM."
-    8 -> "JAGIELL."
+    7 -> "RADZYMIŃSKA"
+    8 -> "JAGIELLOŃSKA"
     9 -> "TARGOWA"
-    11 -> "PŁOWIEC."
+    11 -> "PŁOWIECKA"
     13 -> "MARSA"
-    14 -> "GROCH."
+    14 -> "GROCHOWSKA"
     16 -> "OBOZOWA"
-    17 -> "GÓRCZ."
+    17 -> "GÓRCZEWSKA"
     19 -> "WOLSKA"
-    21 -> "MICKIEW."
-    23 -> "SŁOWAC."
+    21 -> "MICKIEWICZA"
+    23 -> "SŁOWACKIEGO"
     24 -> "WILSONA"
-    26 -> "KRAK.\nPRZEDM."
-    27 -> "ŚWIĘTOKRZ."
+    26 -> "KRAKOWSKIE\nPRZEDMIEŚCIE"
+    27 -> "ŚWIĘTOKRZYSKA"
     29 -> "NOWY ŚWIAT"
     31 -> "TRZECH\nKRZYŻY"
-    32 -> "MARSZAŁK."
-    34 -> "JEROZOL."
-    37 -> "BELWED."
-    39 -> "UJAZDOW."
+    32 -> "MARSZAŁKOWSKA"
+    34 -> "ALEJE\nJEROZOLIMSKIE"
+    37 -> "BELWEDERSKA"
+    39 -> "ALEJE\nUJAZDOWSKIE"
     else -> field.name
+}
+
+private fun playerLocationLabel(player: PlayerState): String = when (player.position) {
+    0 -> "START"
+    2, 18, 33 -> "KASA\nSPOŁECZNA"
+    4 -> "PODATEK"
+    6, 22, 36 -> "SZANSA"
+    10, 30 -> "WIĘZIENIE"
+    20 -> "PARKING"
+    38 -> "DOMIAR"
+    else -> GameData.fields[player.position].name.removePrefix("Ulica ").removePrefix("Aleje ").removePrefix("Plac ").replace("Krakowskie Przedmieście", "KRAKOWSKIE\nPRZEDMIEŚCIE")
+}
+
+private fun playerGenitive(name: String): String = when (name.trim().lowercase()) {
+    "michał" -> "Michała"
+    "ania" -> "Ani"
+    "kamil" -> "Kamila"
+    "ola" -> "Oli"
+    "bartek" -> "Bartka"
+    else -> name
+}
+
+private fun playerDative(name: String): String = when (name.trim().lowercase()) {
+    "michał" -> "Michałowi"
+    "ania" -> "Ani"
+    "kamil" -> "Kamilowi"
+    "ola" -> "Oli"
+    "bartek" -> "Bartkowi"
+    else -> name
 }
 
 private fun tokenIcon(id: Int) = listOf("🚗", "🐧", "🎩", "🐴", "🦖")[id % 5]
