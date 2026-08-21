@@ -1,0 +1,30 @@
+package pl.m0n0p0ly.app
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class GameEngineTest {
+    @Test fun cannotBuySamePropertyTwice() {
+        val first = GameEngine.roll(GameEngine.newGame(listOf("A", "B")), 1, 0)
+        val bought = GameEngine.buy(first)
+        assertEquals(0, bought.properties[1]?.ownerId)
+        assertFalse(bought.awaitingPurchase)
+        assertEquals("A", bought.players[0].name)
+    }
+
+    @Test fun jailBlocksRolling() {
+        val state = GameState(listOf(PlayerState(0, "A", position = 30), PlayerState(1, "B")), currentPlayer = 0)
+        val jailed = GameEngine.roll(state, 1, 1)
+        assertTrue(jailed.players[0].inJail)
+        val unchanged = GameEngine.roll(jailed, 6, 6)
+        assertEquals(jailed.players[0].position, unchanged.players[0].position)
+        assertTrue(unchanged.players[0].inJail)
+    }
+
+    @Test fun passingStartAddsTwoHundred() {
+        val state = GameState(listOf(PlayerState(0, "A", position = 39), PlayerState(1, "B")), currentPlayer = 0)
+        val moved = GameEngine.roll(state, 1, 1)
+        assertEquals(1700, moved.players[0].money)
+        assertEquals(1, moved.players[0].position)
+    }
+}
