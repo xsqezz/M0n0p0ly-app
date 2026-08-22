@@ -78,9 +78,15 @@ object LanNetwork {
         return result
     }
 
-    fun decodeAction(json: JSONObject): GameAction? = actionFromJson(json.optJSONObject("action") ?: return null)
+    fun decodeAction(json: JSONObject): GameAction? {
+        val action = json.optJSONObject("action") ?: return null
+        return actionFromJson(action)
+    }
 
-    fun decodeState(json: JSONObject): GameState? = stateFromJson(json.optJSONObject("state") ?: return null)
+    fun decodeState(json: JSONObject): GameState? {
+        val state = json.optJSONObject("state") ?: return null
+        return stateFromJson(state)
+    }
 
     private fun actionToJson(action: GameAction) = when (action) {
         is GameAction.RollDice -> JSONObject().put("kind", "ROLL").put("first", action.first).put("second", action.second)
@@ -115,7 +121,7 @@ object LanNetwork {
         "SELL_BUILDING" -> GameAction.SellBuilding(json.optInt("index", -1))
         "MORTGAGE" -> GameAction.MortgageProperty(json.optInt("index", -1))
         "UNMORTGAGE" -> GameAction.UnmortgageProperty(json.optInt("index", -1))
-        "CREATE_TRADE" -> tradeFromJson(json.optJSONObject("offer") ?: return null)?.let { GameAction.CreateTrade(it) }
+        "CREATE_TRADE" -> json.optJSONObject("offer")?.let { GameAction.CreateTrade(tradeFromJson(it)) }
         "ACCEPT_TRADE" -> GameAction.AcceptTrade
         "REJECT_TRADE" -> GameAction.RejectTrade
         else -> null
@@ -231,7 +237,7 @@ class LanHost(
 
     private fun acceptLoop() {
         while (running) {
-            runCatching { server?.accept() }.onSuccess { socket -> executor.execute { handleClient(socket) } }.onFailure { if (running) onError("Serwer gry został rozłączony.") }
+            runCatching { server?.accept() }.onSuccess { socket -> socket?.let { accepted -> executor.execute { handleClient(accepted) } } }.onFailure { if (running) onError("Serwer gry został rozłączony.") }
         }
     }
 
