@@ -621,7 +621,6 @@ private fun ActionBar(state: GameState, dispatch: (GameAction) -> Unit, diceAnim
         }
     }
 }
-}
 
 private fun boardLabel(index: Int, field: Field): String = when (index) {
     0 -> "START"
